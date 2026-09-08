@@ -6,12 +6,14 @@ const Store = (() => {
 
   const padrao = () => ({
     empresa: {
-      nome: 'Minha Barraca',
-      telefone: '',
+      nome: 'GU HORTALIÇAS',
+      telefone: '(11) 94014-3665',
       slogan: 'FRESCOR • QUALIDADE • SAÚDE',
+      /* A chave PIX fica em branco de propósito: cada aparelho cadastra a
+         sua em ⚙️, para o dado de pagamento não viajar dentro do código. */
       pixChave: '',
       pixTitular: '',
-      logo: ''
+      logo: 'imagens/logo-gu.jpg'
     },
     atendentes: [],
     frequentes: [],         // produtos usados recentemente, para lançar com um toque

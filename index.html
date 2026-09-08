@@ -16,6 +16,7 @@
 </head>
 <body data-vista="pedido">
 
+<div class="cabecalho">
 <header class="topo">
   <span class="topo-logo" id="topoLogo">🥬</span>
   <div class="topo-nome">
@@ -64,26 +65,12 @@
       </details>
     </div>
 
-    <div class="cartao cartao-mensagem">
-      <details class="detalhes" id="detalhesMensagem">
-        <summary>
-          <span class="summary-titulo">📋 Colar a mensagem do cliente</span>
-          <span class="summary-dica">monta a lista sozinho</span>
-        </summary>
-        <p class="dica">
-          Cole aqui o que o cliente mandou no WhatsApp. O app separa os produtos e as
-          quantidades e você só coloca os preços.
-        </p>
-        <textarea id="mensagem" rows="5" placeholder="Bom dia! Queria:&#10;2 kg de tomate&#10;1 caixa de morango&#10;meia dúzia de ovos"></textarea>
-        <div class="acoes">
-          <button type="button" class="botao botao-principal botao-grande" id="btnLerMensagem">Montar lista</button>
-          <button type="button" class="botao botao-grande" id="btnLimparMensagem">Limpar</button>
-        </div>
-      </details>
-    </div>
-
     <div class="cartao">
-      <h2>Adicionar produto</h2>
+      <div class="alternador" role="tablist" aria-label="Como adicionar">
+        <button type="button" class="alt" role="tab" data-modo="um" aria-selected="true">Um por um</button>
+        <button type="button" class="alt" role="tab" data-modo="mensagem" aria-selected="false">Colar mensagem</button>
+      </div>
+
       <form id="formItem" autocomplete="off">
         <label class="campo">
           <span class="campo-rotulo">Produto</span>
@@ -92,11 +79,15 @@
         </label>
         <div class="chips chips-rolagem" id="chipsFrequentes" hidden></div>
 
-        <span class="campo-rotulo">Quantidade</span>
-        <div class="linha-qtd">
-          <button type="button" class="botao-passo" id="btnMenos" aria-label="Diminuir">−</button>
-          <input type="text" id="itemQtd" value="1" inputmode="decimal" aria-label="Quantidade">
-          <button type="button" class="botao-passo" id="btnMais" aria-label="Aumentar">+</button>
+        <div class="dupla">
+          <div>
+            <span class="campo-rotulo">Quantidade</span>
+            <div class="linha-qtd">
+              <button type="button" class="botao-passo" id="btnMenos" aria-label="Diminuir">−</button>
+              <input type="text" id="itemQtd" value="1" inputmode="decimal" aria-label="Quantidade">
+              <button type="button" class="botao-passo" id="btnMais" aria-label="Aumentar">+</button>
+            </div>
+          </div>
         </div>
         <div class="chips chips-rolagem" id="chipsUnidade"></div>
 
@@ -108,10 +99,21 @@
                    enterkeyhint="done" required>
           </div>
         </label>
-        <p class="dica">Sem valor unitário: você digita o preço fechado do produto.</p>
 
         <button type="submit" class="botao botao-principal botao-grande">Adicionar ao pedido</button>
       </form>
+
+      <div id="painelMensagem" hidden>
+        <p class="dica">
+          Cole o que o cliente mandou no WhatsApp. O app separa os produtos e as
+          quantidades — depois é só tocar em cada preço.
+        </p>
+        <textarea id="mensagem" rows="6" placeholder="Bom dia! Queria:&#10;2 kg de tomate&#10;1 caixa de morango&#10;meia dúzia de ovos"></textarea>
+        <div class="acoes">
+          <button type="button" class="botao botao-principal botao-grande" id="btnLerMensagem">Montar lista</button>
+          <button type="button" class="botao botao-grande" id="btnLimparMensagem">Limpar</button>
+        </div>
+      </div>
     </div>
 
     <div class="cartao">
@@ -122,6 +124,8 @@
 
       <ul class="itens" id="listaItens"></ul>
       <p class="vazio" id="listaVazia">Nenhum item ainda. Adicione o primeiro produto acima.</p>
+
+      <p class="dica dica-total">Sempre o <strong>valor total</strong> do produto — sem valor unitário.</p>
 
       <label class="campo campo-linha">
         <span class="campo-rotulo">Taxa de entrega</span>

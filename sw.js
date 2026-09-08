@@ -1,9 +1,10 @@
 /* Guarda o app no aparelho: depois da primeira abertura, funciona sem internet. */
-const CACHE = 'barraca-v1';
+const CACHE = 'barraca-v2';
 const ARQUIVOS = [
   '.', 'index.html', 'manifest.webmanifest',
   'css/styles.css', 'js/store.js', 'js/parser.js', 'js/receipt.js', 'js/app.js',
-  'icones/icone.svg', 'icones/icone-192.png', 'icones/icone-512.png'
+  'icones/icone.svg', 'icones/icone-192.png', 'icones/icone-512.png',
+  'imagens/logo-gu.jpg'
 ];
 
 self.addEventListener('install', ev => {

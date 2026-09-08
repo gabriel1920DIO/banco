@@ -2,7 +2,8 @@
 (() => {
   const $ = sel => document.querySelector(sel);
   const hoje = () => new Date().toISOString().slice(0, 10);
-  const UNIDADES = ['un', 'kg', 'g', 'cx', 'ctla', 'dz', 'mç', 'pct', 'bdj', 'sc', 'L', 'pé'];
+  const UNIDADES = ['un', 'kg', 'cx', 'mç', 'dz', 'bdj'];
+  const UNIDADES_EXTRA = ['g', 'ctla', 'pct', 'sc', 'L', 'pé'];
 
   const el = {
     cliente: $('#cliente'), endereco: $('#endereco'), data: $('#data'),
@@ -12,7 +13,7 @@
     listaItens: $('#listaItens'), listaVazia: $('#listaVazia'), contadorItens: $('#contadorItens'),
     taxaEntrega: $('#taxaEntrega'), totalGeral: $('#totalGeral'), pillItens: $('#pillItens'),
     canvas: $('#canvasPedido'), btnAcao: $('#btnAcao'),
-    mensagem: $('#mensagem'), detalhesMensagem: $('#detalhesMensagem'),
+    mensagem: $('#mensagem'),
     topoNome: $('#topoNome'), topoSub: $('#topoSub'), topoLogo: $('#topoLogo'),
     toast: $('#toast')
   };
@@ -59,6 +60,7 @@
         atendente: nomeAtendente(), itens: pedido.itens, taxa: pedido.taxa,
         empresa: Store.empresa
       }, { logo: logoImg });
+      prepararArquivo();
     });
   }
 
@@ -221,7 +223,7 @@
     }
 
     el.mensagem.value = '';
-    el.detalhesMensagem.open = false;
+    modo('um');
     vibrar(20);
     pintarItens();
     atualizar();
@@ -230,6 +232,17 @@
   });
 
   $('#btnLimparMensagem').addEventListener('click', () => { el.mensagem.value = ''; el.mensagem.focus(); });
+
+  /* Um formulário por vez: a tela do celular fica curta e clara. */
+  function modo(qual) {
+    el.formItem.hidden = qual !== 'um';
+    $('#painelMensagem').hidden = qual !== 'mensagem';
+    document.querySelectorAll('.alt').forEach(a => a.setAttribute('aria-selected', String(a.dataset.modo === qual)));
+  }
+  document.querySelectorAll('.alt').forEach(a => a.addEventListener('click', () => {
+    modo(a.dataset.modo);
+    vibrar(8);
+  }));
 
   /* ===================== campos do pedido ===================== */
   el.cliente.addEventListener('input', () => { pedido.cliente = el.cliente.value; atualizar(); });
@@ -281,33 +294,43 @@
 
   const paraBlob = () => new Promise(r => el.canvas.toBlob(r, 'image/png'));
 
-  async function baixar() {
+  /* O Safari do iPhone só aceita navigator.share dentro do toque: se houver
+     qualquer espera antes, ele recusa. Por isso a imagem é preparada assim
+     que o pedido muda e o botão usa o arquivo já pronto. */
+  let arquivoPronto = null;
+  async function prepararArquivo() {
     const blob = await paraBlob();
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
+    arquivoPronto = blob ? new File([blob], nomeArquivo(), { type: 'image/png' }) : null;
+    return arquivoPronto;
+  }
+
+  function baixarArquivo(arquivo) {
+    const url = URL.createObjectURL(arquivo);
     const a = document.createElement('a');
     a.href = url;
-    a.download = nomeArquivo();
+    a.download = arquivo.name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  $('#btnBaixar').addEventListener('click', baixar);
+  $('#btnBaixar').addEventListener('click', async () => {
+    const arquivo = arquivoPronto || await prepararArquivo();
+    if (arquivo) baixarArquivo(arquivo);
+  });
 
-  $('#btnCompartilhar').addEventListener('click', async () => {
-    const blob = await paraBlob();
-    if (!blob) return;
-    const arquivo = new File([blob], nomeArquivo(), { type: 'image/png' });
-    if (navigator.canShare?.({ files: [arquivo] })) {
-      try {
-        await navigator.share({ files: [arquivo], title: 'Pedido' });
-      } catch (e) {
-        if (e.name !== 'AbortError') toast('Não foi possível compartilhar.');
-      }
-    } else {
-      await baixar();
-      toast('Imagem baixada — envie pelo WhatsApp.');
+  $('#btnCompartilhar').addEventListener('click', ev => {
+    const arquivo = arquivoPronto;
+    if (arquivo && navigator.canShare?.({ files: [arquivo] })) {
+      navigator.share({ files: [arquivo], title: 'Pedido' })
+        .catch(e => { if (e.name !== 'AbortError') toast('Não foi possível compartilhar.'); });
+      return;
     }
+    /* Sem compartilhamento de arquivo (ou imagem ainda sendo preparada): baixa. */
+    prepararArquivo().then(pronto => {
+      if (!pronto) return;
+      baixarArquivo(pronto);
+      toast('Imagem salva — envie pelo WhatsApp.');
+    });
   });
 
   /* ===================== chips ===================== */
@@ -335,11 +358,19 @@
     el.avisoAtendente.hidden = Store.atendentes.length > 0;
   }
 
+  let todasUnidades = false;
   function pintarUnidades() {
     el.chipsUnidade.innerHTML = '';
-    UNIDADES.forEach(u => {
+    const lista = todasUnidades ? [...UNIDADES, ...UNIDADES_EXTRA] : UNIDADES;
+    if (!lista.includes(unidadeAtual)) lista.push(unidadeAtual);
+    lista.forEach(u => {
       el.chipsUnidade.append(chip(u, () => { unidadeAtual = u; pintarUnidades(); }, unidadeAtual === u));
     });
+    if (!todasUnidades) {
+      const mais = chip('mais…', () => { todasUnidades = true; pintarUnidades(); });
+      mais.classList.add('chip-fraco');
+      el.chipsUnidade.append(mais);
+    }
   }
 
   function pintarFrequentes() {

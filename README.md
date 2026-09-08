@@ -1,7 +1,8 @@
-# Pedidos da Barraca
+# Pedidos da Barraca — GU HORTALIÇAS
 
 Aplicação web para montar o pedido do cliente na feira, **no celular**, e gerar
-uma **foto do pedido** pronta para enviar pelo WhatsApp.
+uma **foto do pedido** no mesmo formato do bloco da barraca, pronta para enviar
+pelo WhatsApp.
 
 Não tem servidor e não tem banco de dados: é só HTML, CSS e JavaScript. Tudo
 fica salvo no próprio aparelho (localStorage) e funciona sem internet depois da
@@ -15,7 +16,10 @@ celular, use "Adicionar à tela de início" — o app abre em tela cheia e funci
 offline.
 
 1. Toque em ⚙️ e entre com a senha do administrador (**padrão: `admin`**).
-2. Cadastre os atendentes e os dados da barraca (nome, telefone, PIX, logo).
+2. Cadastre os atendentes e **a chave PIX** — o nome, o telefone, o slogan e a
+   logo da GU HORTALIÇAS já vêm preenchidos, mas a chave PIX fica em branco de
+   propósito: dado de pagamento não vai dentro do código, cada aparelho cadastra
+   a sua uma vez.
 3. **Troque a senha padrão** ainda no painel do administrador.
 4. Na tela principal: toque no seu nome, monte o pedido e toque em
    **Compartilhar**.
@@ -76,3 +80,13 @@ dados ficam no navegador local. Não é um controle de acesso de servidor.
 | `js/receipt.js` | Desenha o pedido no `<canvas>` — é a imagem gerada |
 | `js/app.js` | Liga a tela ao pedido: itens, totais, admin, compartilhar |
 | `sw.js`, `manifest.webmanifest`, `icones/` | Instalação na tela de início e uso offline |
+| `imagens/logo-gu.jpg` | Logo da barraca, usada no topo e na foto do pedido |
+
+## Detalhes de celular
+
+Testado em iPhone SE, iPhone 15, Android e tablet: sem rolagem lateral, nenhum
+alvo de toque menor que 40 px e a barra do total sempre visível.
+
+No iPhone o Safari só aceita o compartilhamento **dentro do toque**, sem espera
+antes. Por isso a imagem do pedido é preparada assim que o pedido muda, e o
+botão "Compartilhar" usa o arquivo já pronto.

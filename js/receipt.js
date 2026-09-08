@@ -1,4 +1,9 @@
-/* Desenha o pedido em um <canvas> — é essa imagem que vira a "foto" do pedido. */
+/* ===================================================================
+   Desenha o pedido em um <canvas>, no mesmo formato do bloco de
+   pedidos da barraca: logo redonda, faixa do fornecedor, tabela sobre
+   papel pautado com marca d'água, taxa de entrega, total geral,
+   dados do PIX e os selos de rodapé.
+   =================================================================== */
 const Fmt = {
   moeda(v) {
     return 'R$ ' + (Number(v) || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -25,19 +30,30 @@ const Fmt = {
 };
 
 const Receipt = (() => {
-  const L = 1000;                 // largura lógica
-  const M = 36;                   // margem
+  const L = 1000;                 // largura lógica da folha
+  const M = 34;                   // margem
   const VERDE = '#14532d';
-  const VERDE_CLARO = '#eef5ef';
+  const VERDE_MEIO = '#2f7d3c';
+  const CREME = '#fbfaf3';
   const TEXTO = '#1b2420';
   const FRACO = '#6b7a71';
-  const BORDA = '#c9d4cb';
+  const BORDA = '#c3cfc6';
+  const PIX_COR = '#32bcad';
   const FONTE = 'Arial, Helvetica, sans-serif';
+  const SERIF = 'Georgia, "Times New Roman", serif';
 
-  const COL = { item: 80, quant: 170, valor: 230 };
-  COL.desc = L - 2 * M - COL.item - COL.quant - COL.valor;
+  /* Colunas iguais às do bloco: a de valor unitário fica sempre com "–",
+     porque o preço é sempre lançado fechado, no valor total. */
+  const COL = { item: 68, desc: 372, quant: 150, unit: 158, total: 186 };
+  const LINHA_MIN = 5;            // a tabela nunca fica curta demais
 
-  function fonte(peso, tam) { return `${peso} ${tam}px ${FONTE}`; }
+  const fonte = (peso, tam, familia = FONTE) => `${peso} ${tam}px ${familia}`;
+
+  function caixa(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+  }
 
   function quebrar(ctx, texto, largura) {
     const palavras = String(texto || '').split(/\s+/).filter(Boolean);
@@ -53,284 +69,405 @@ const Receipt = (() => {
     return linhas;
   }
 
-  function encolher(ctx, texto, largura, peso, tamMax, tamMin) {
+  function encolher(ctx, texto, largura, peso, tamMax, tamMin, familia) {
     let tam = tamMax;
     do {
-      ctx.font = fonte(peso, tam);
+      ctx.font = fonte(peso, tam, familia);
       if (ctx.measureText(texto).width <= largura) break;
       tam -= 2;
     } while (tam > tamMin);
     return tam;
   }
 
-  function caixa(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
-    else ctx.rect(x, y, w, h);
-  }
-
-  /* Linhas de informação do cabeçalho (data, cliente, atendente, endereço). */
   function linhasInfo(dados) {
-    const info = [
-      ['DATA', Fmt.data(dados.data)],
-      ['CLIENTE', dados.cliente || '—'],
-      ['ATENDENTE', dados.atendente || '—']
-    ];
+    const info = [['DATA', Fmt.data(dados.data)], ['CLIENTE', dados.cliente || '—']];
+    if (dados.atendente) info.push(['ATENDENTE', dados.atendente]);
     if (dados.endereco) info.push(['ENDEREÇO', dados.endereco]);
     return info;
   }
 
-  /* Mede tudo antes de desenhar, para saber a altura final da imagem. */
-  function medir(ctx, dados) {
-    ctx.font = fonte('normal', 26);
-    const itens = dados.itens.map(it => {
-      const linhas = quebrar(ctx, it.desc, COL.desc - 24);
-      return { ...it, linhas, altura: Math.max(56, 22 + linhas.length * 34) };
-    });
-
-    const textoX = dados.temLogo ? M + 200 + 28 : M;
-    const larguraTexto = L - M - textoX;
-    const tamNome = encolher(ctx, (dados.empresa.nome || '').toUpperCase(), larguraTexto, 'bold', 52, 26);
-    /* 8 (folga) + etiqueta 34 + 14 + nome + 18 + uma linha por informação */
-    const cabecalho = 8 + 48 + tamNome + 18 + linhasInfo(dados).length * 46;
-    const alturaCabecalho = Math.max(cabecalho, dados.temLogo ? 208 : 0);
-
-    const tabela = 52 + itens.reduce((s, i) => s + i.altura, 0) + 56 /* subtotal */ + 56 /* taxa */;
-    const temPix = !!(dados.empresa.pixChave || dados.empresa.pixTitular);
-    /* 26 antes do total + faixa do total 76 + 30 + bloco de pagamento + 30 + barra final 52 */
-    const rodape = 26 + 76 + 30 + Math.max(temPix ? 118 : 0, 96) + 30 + 52;
-
-    return { itens, tamNome, textoX, larguraTexto, alturaCabecalho, altura: M + alturaCabecalho + 28 + tabela + rodape };
+  /* ---------- desenhos soltos ---------- */
+  function folha(ctx, x, y, tam, cor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = cor;
+    ctx.beginPath();
+    ctx.moveTo(0, tam / 2);
+    ctx.bezierCurveTo(0, -tam / 2, tam, -tam / 2, tam, -tam / 2);
+    ctx.bezierCurveTo(tam, tam / 2, 0, tam / 2, 0, tam / 2);
+    ctx.fill();
+    ctx.strokeStyle = cor;
+    ctx.lineWidth = tam * .07;
+    ctx.beginPath();
+    ctx.moveTo(tam * .1, tam * .38);
+    ctx.lineTo(tam * .85, -tam * .3);
+    ctx.stroke();
+    ctx.restore();
   }
 
+  function coracao(ctx, x, y, tam, cor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = cor;
+    ctx.beginPath();
+    ctx.moveTo(0, tam * .3);
+    ctx.bezierCurveTo(-tam, -tam * .35, -tam * .35, -tam * .9, 0, -tam * .25);
+    ctx.bezierCurveTo(tam * .35, -tam * .9, tam, -tam * .35, 0, tam * .3);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function estrela(ctx, x, y, raio, cor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = cor;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? raio * .45 : raio;
+      const a = (Math.PI / 5) * i - Math.PI / 2;
+      ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function selo(ctx, x, y, rotulo, desenho) {
+    const raio = 30;
+    ctx.strokeStyle = VERDE;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, raio, 0, Math.PI * 2);
+    ctx.stroke();
+    desenho(ctx, x, y);
+    ctx.fillStyle = FRACO;
+    ctx.font = fonte('bold', 15);
+    ctx.textAlign = 'center';
+    ctx.fillText(rotulo, x, y + raio + 24);
+  }
+
+  /* Losango do Pix, só para indicar a forma de pagamento. */
+  function marcaPix(ctx, x, y, tam) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = PIX_COR;
+    caixa(ctx, -tam / 2, -tam / 2, tam, tam, tam * .22);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = PIX_COR;
+    ctx.font = fonte('bold', tam * .82);
+    ctx.textAlign = 'left';
+    ctx.fillText('pix', x + tam * .78, y + tam * .3);
+  }
+
+  /* ---------- medidas ---------- */
+  function medir(ctx, dados) {
+    ctx.font = fonte('normal', 25);
+    const itens = dados.itens.map(it => {
+      const linhas = quebrar(ctx, it.desc, COL.desc - 26);
+      return { ...it, linhas, altura: Math.max(54, 20 + linhas.length * 32) };
+    });
+
+    const logoLado = dados.temLogo ? 250 : 0;
+    const textoX = dados.temLogo ? M + logoLado + 26 : M;
+    const larguraTexto = L - M - textoX;
+    const tamNome = encolher(ctx, (dados.empresa.nome || '').toUpperCase(), larguraTexto, 'bold', 50, 24);
+    const info = linhasInfo(dados);
+    const cabecalhoTexto = 6 + 36 + 12 + tamNome + 16 + info.length * 46;
+    const alturaCabecalho = Math.max(cabecalhoTexto, logoLado);
+
+    const vazias = Math.max(0, LINHA_MIN - itens.length);
+    const alturaTabela = 52 + itens.reduce((s, i) => s + i.altura, 0) + vazias * 54 + 58;
+
+    const temPix = !!(dados.empresa.pixChave || dados.empresa.pixTitular);
+    const alturaPagamento = temPix ? 176 : 96;
+
+    const altura = M + alturaCabecalho + 24 + alturaTabela + 16 + 62 /* taxa */
+                 + 18 + 84 /* total */ + 28 + alturaPagamento + 22 + 54 /* barra */;
+
+    return { itens, vazias, tamNome, textoX, larguraTexto, logoLado, alturaCabecalho, temPix, altura };
+  }
+
+  /* ---------- desenho ---------- */
   function render(canvas, dados, opcoes = {}) {
     const logo = opcoes.logo || null;
     dados = { ...dados, temLogo: !!logo };
 
     const ctx = canvas.getContext('2d');
-    const medida = medir(ctx, dados);
+    const m = medir(ctx, dados);
     const escala = Math.min(2, globalThis.devicePixelRatio || 1) * 1.5;
 
     canvas.width = Math.round(L * escala);
-    canvas.height = Math.round(medida.altura * escala);
-    canvas.style.aspectRatio = `${L} / ${medida.altura}`;
+    canvas.height = Math.round(m.altura * escala);
+    canvas.style.aspectRatio = `${L} / ${m.altura}`;
     ctx.setTransform(escala, 0, 0, escala, 0, 0);
     ctx.textBaseline = 'alphabetic';
 
-    /* fundo */
-    ctx.fillStyle = '#fbfbf7';
-    ctx.fillRect(0, 0, L, medida.altura);
+    ctx.fillStyle = CREME;
+    ctx.fillRect(0, 0, L, m.altura);
 
-    /* ---------- cabeçalho ---------- */
-    let textoX = medida.textoX;
+    /* ======== cabeçalho ======== */
     if (logo) {
-      const lado = 200;
+      const r = m.logoLado / 2;
       ctx.save();
-      caixa(ctx, M, M, lado, lado, 16);
+      ctx.beginPath();
+      ctx.arc(M + r, M + r, r, 0, Math.PI * 2);
       ctx.clip();
-      const razao = Math.max(lado / logo.width, lado / logo.height);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      const razao = Math.max(m.logoLado / logo.width, m.logoLado / logo.height);
       const lw = logo.width * razao, lh = logo.height * razao;
-      ctx.drawImage(logo, M + (lado - lw) / 2, M + (lado - lh) / 2, lw, lh);
+      ctx.drawImage(logo, M + r - lw / 2, M + r - lh / 2, lw, lh);
       ctx.restore();
     }
 
-    let y = M + 8;
-    const larguraTexto = medida.larguraTexto;
-
-    /* etiqueta "PEDIDO" */
+    let y = M + 6;
     ctx.fillStyle = VERDE;
-    caixa(ctx, textoX, y, 150, 34, 6);
+    caixa(ctx, m.textoX, y, 196, 36, 6);
     ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.font = fonte('bold', 20);
     ctx.textAlign = 'center';
-    ctx.fillText('PEDIDO', textoX + 75, y + 24);
+    ctx.fillText('FORNECEDOR', m.textoX + 98, y + 25);
     ctx.textAlign = 'left';
-    y += 34 + 14;
+    y += 36 + 12;
 
-    /* nome da barraca */
-    const nome = (dados.empresa.nome || 'Minha Barraca').toUpperCase();
-    const tam = medida.tamNome;
     ctx.fillStyle = VERDE;
-    ctx.font = fonte('bold', tam);
-    ctx.fillText(nome, textoX, y + tam);
-    y += tam + 18;
+    ctx.font = fonte('bold', m.tamNome);
+    ctx.fillText((dados.empresa.nome || 'Minha Barraca').toUpperCase(), m.textoX, y + m.tamNome);
+    y += m.tamNome + 16;
 
-    /* dados do pedido */
-    const rotuloL = 170;
+    const rotuloL = 168;
     for (const [rotulo, valor] of linhasInfo(dados)) {
       ctx.fillStyle = FRACO;
-      ctx.font = fonte('bold', 21);
-      ctx.fillText(rotulo, textoX, y + 26);
+      ctx.font = fonte('bold', 20);
+      ctx.fillText(rotulo, m.textoX, y + 26);
 
       ctx.strokeStyle = BORDA;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(textoX + rotuloL - 14, y + 4);
-      ctx.lineTo(textoX + rotuloL - 14, y + 36);
+      ctx.moveTo(m.textoX + rotuloL - 16, y + 4);
+      ctx.lineTo(m.textoX + rotuloL - 16, y + 36);
       ctx.stroke();
 
       ctx.fillStyle = TEXTO;
-      const tamValor = encolher(ctx, valor, larguraTexto - rotuloL, 'normal', 26, 16);
-      ctx.font = fonte('normal', tamValor);
-      ctx.fillText(valor, textoX + rotuloL, y + 26);
+      const tam = encolher(ctx, valor, m.larguraTexto - rotuloL, 'normal', 25, 15);
+      ctx.font = fonte('normal', tam);
+      ctx.fillText(valor, m.textoX + rotuloL, y + 26);
       y += 46;
     }
 
-    /* ---------- tabela ---------- */
-    let ty = M + medida.alturaCabecalho + 28;
+    /* ======== tabela ======== */
+    const topo = M + m.alturaCabecalho + 24;
     const xItem = M;
     const xDesc = xItem + COL.item;
     const xQuant = xDesc + COL.desc;
-    const xValor = xQuant + COL.quant;
+    const xUnit = xQuant + COL.quant;
+    const xTotal = xUnit + COL.unit;
     const fimX = L - M;
 
-    ctx.fillStyle = VERDE;
-    ctx.fillRect(M, ty, fimX - M, 52);
-    ctx.fillStyle = '#fff';
-    ctx.font = fonte('bold', 21);
-    ctx.textAlign = 'center';
-    ctx.fillText('ITEM', xItem + COL.item / 2, ty + 33);
-    ctx.fillText('QUANT.', xQuant + COL.quant / 2, ty + 33);
-    ctx.fillText('VALOR TOTAL', xValor + COL.valor / 2, ty + 33);
-    ctx.textAlign = 'left';
-    ctx.fillText('DESCRIÇÃO', xDesc + 16, ty + 33);
-    ty += 52;
+    const alturaCorpo = m.itens.reduce((s, i) => s + i.altura, 0) + m.vazias * 54 + 58;
 
+    /* papel pautado + marca d'água, atrás da tabela */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(M, topo + 52, fimX - M, alturaCorpo);
+    ctx.clip();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(M, topo + 52, fimX - M, alturaCorpo);
+    if (logo) {
+      ctx.globalAlpha = .09;
+      const lado = Math.min(620, alturaCorpo * 1.5);
+      ctx.drawImage(logo, (L - lado) / 2, topo + 52 + (alturaCorpo - lado) / 2, lado, lado);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+
+    /* cabeçalho da tabela */
+    ctx.fillStyle = VERDE;
+    ctx.fillRect(M, topo, fimX - M, 52);
+    ctx.fillStyle = '#fff';
+    ctx.font = fonte('bold', 19);
+    ctx.textAlign = 'center';
+    ctx.fillText('ITEM', xItem + COL.item / 2, topo + 33);
+    ctx.fillText('QUANT.', xQuant + COL.quant / 2, topo + 33);
+    ctx.fillText('VALOR UNIT.', xUnit + COL.unit / 2, topo + 33);
+    ctx.fillText('VALOR TOTAL', xTotal + COL.total / 2, topo + 33);
+    ctx.textAlign = 'left';
+    ctx.fillText('DESCRIÇÃO', xDesc + 16, topo + 33);
+
+    let ty = topo + 52;
     let soma = 0;
-    medida.itens.forEach((it, i) => {
-      if (i % 2) {
-        ctx.fillStyle = VERDE_CLARO;
-        ctx.fillRect(M, ty, fimX - M, it.altura);
-      }
+
+    const risco = yy => {
       ctx.strokeStyle = BORDA;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(M, ty + it.altura + .5);
-      ctx.lineTo(fimX, ty + it.altura + .5);
+      ctx.moveTo(M, yy + .5);
+      ctx.lineTo(fimX, yy + .5);
       ctx.stroke();
+    };
 
+    m.itens.forEach((it, i) => {
       const meio = ty + it.altura / 2 + 9;
+
       ctx.fillStyle = FRACO;
-      ctx.font = fonte('normal', 24);
+      ctx.font = fonte('normal', 23);
       ctx.textAlign = 'center';
       ctx.fillText(String(i + 1), xItem + COL.item / 2, meio);
 
       ctx.fillStyle = TEXTO;
-      ctx.font = fonte('normal', 26);
+      ctx.font = fonte('normal', 25);
       ctx.fillText(it.quantidade, xQuant + COL.quant / 2, meio);
 
-      ctx.font = fonte('bold', 27);
+      ctx.fillStyle = '#9aa8a0';
+      ctx.font = fonte('normal', 25);
+      ctx.fillText('–', xUnit + COL.unit / 2, meio);
+
+      ctx.fillStyle = TEXTO;
+      ctx.font = fonte('bold', 26);
       ctx.textAlign = 'right';
-      ctx.fillText(Fmt.moeda(it.valor), xValor + COL.valor - 16, meio);
+      ctx.fillText(Fmt.moeda(it.valor), xTotal + COL.total - 16, meio);
 
       ctx.textAlign = 'left';
-      ctx.font = fonte('normal', 26);
-      const topo = ty + it.altura / 2 - (it.linhas.length - 1) * 17 + 9;
-      it.linhas.forEach((linha, k) => ctx.fillText(linha, xDesc + 16, topo + k * 34));
+      ctx.font = fonte('normal', 25);
+      const topoTexto = ty + it.altura / 2 - (it.linhas.length - 1) * 16 + 9;
+      it.linhas.forEach((linha, k) => ctx.fillText(linha, xDesc + 16, topoTexto + k * 32));
 
       soma += it.valor;
       ty += it.altura;
+      risco(ty);
     });
 
-    /* subtotal */
-    ctx.fillStyle = FRACO;
-    ctx.font = fonte('normal', 24);
-    ctx.textAlign = 'right';
-    ctx.fillText('Subtotal', xQuant + COL.quant - 16, ty + 36);
+    for (let i = 0; i < m.vazias; i++) { ty += 54; risco(ty); }
+
+    /* soma dos itens, na coluna do valor total */
     ctx.fillStyle = TEXTO;
-    ctx.font = fonte('bold', 26);
-    ctx.fillText(Fmt.moeda(soma), xValor + COL.valor - 16, ty + 36);
-    ty += 56;
+    ctx.font = fonte('bold', 27);
+    ctx.textAlign = 'right';
+    ctx.fillText(Fmt.moeda(soma), xTotal + COL.total - 16, ty + 38);
+    ty += 58;
 
-    /* taxa de entrega */
-    const taxa = Number(dados.taxa) || 0;
-    ctx.fillStyle = FRACO;
-    ctx.font = fonte('normal', 24);
-    ctx.fillText('Taxa de entrega', xQuant + COL.quant - 16, ty + 36);
-    if (taxa > 0) {
-      ctx.fillStyle = TEXTO;
-      ctx.font = fonte('bold', 26);
-      ctx.fillText(Fmt.moeda(taxa), xValor + COL.valor - 16, ty + 36);
-    } else {
-      ctx.fillStyle = VERDE;
-      ctx.font = fonte('bold', 26);
-      ctx.fillText('GRÁTIS!', xValor + COL.valor - 16, ty + 36);
-    }
-    ty += 56;
-
-    /* borda da tabela */
+    /* grade da tabela */
     ctx.strokeStyle = BORDA;
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(M + .5, M + medida.alturaCabecalho + 28.5, fimX - M - 1, ty - (M + medida.alturaCabecalho + 28) - 1);
+    ctx.strokeRect(M + .75, topo + .75, fimX - M - 1.5, ty - topo - 1.5);
+    ctx.beginPath();
+    for (const x of [xDesc, xQuant, xUnit, xTotal]) {
+      ctx.moveTo(x + .5, topo + 52);
+      ctx.lineTo(x + .5, ty);
+    }
+    ctx.stroke();
 
-    /* ---------- total geral ---------- */
-    ty += 26;
-    const larguraTotal = 480;
-    const xTotal = fimX - larguraTotal;
+    /* ======== taxa de entrega ======== */
+    ty += 16;
+    const alturaTaxa = 62;
+    const taxa = Number(dados.taxa) || 0;
+    ctx.strokeStyle = BORDA;
+    ctx.lineWidth = 1.5;
+    caixa(ctx, M, ty, 420, alturaTaxa, 8);
+    ctx.stroke();
+    ctx.fillStyle = TEXTO;
+    ctx.font = fonte('normal', 24);
+    ctx.textAlign = 'center';
+    ctx.fillText('TAXA DE ENTREGA', M + 210, ty + 39);
+
+    const xGratis = M + 440;
+    ctx.strokeStyle = taxa > 0 ? BORDA : VERDE_MEIO;
+    caixa(ctx, xGratis, ty, 300, alturaTaxa, 8);
+    ctx.stroke();
+    ctx.fillStyle = taxa > 0 ? TEXTO : VERDE_MEIO;
+    ctx.font = fonte('bold', 26);
+    ctx.fillText(taxa > 0 ? Fmt.moeda(taxa) : 'GRÁTIS!', xGratis + 150, ty + 40);
+
+    ctx.fillStyle = TEXTO;
+    ctx.font = fonte('bold', 25);
+    ctx.textAlign = 'right';
+    ctx.fillText(Fmt.moeda(taxa), fimX, ty + 40);
+
+    /* ======== total geral ======== */
+    ty += alturaTaxa + 18;
+    const larguraTotal = 520;
+    const xBanner = fimX - larguraTotal;
     ctx.fillStyle = VERDE;
-    caixa(ctx, xTotal, ty, larguraTotal, 76, 10);
+    caixa(ctx, xBanner, ty, larguraTotal, 84, 10);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = fonte('bold', 28);
+    ctx.font = fonte('bold', 30);
     ctx.textAlign = 'left';
-    ctx.fillText('TOTAL GERAL', xTotal + 24, ty + 48);
-    ctx.font = fonte('bold', 38);
+    ctx.fillText('TOTAL GERAL', xBanner + 26, ty + 53);
+    ctx.font = fonte('bold', 40);
     ctx.textAlign = 'right';
-    ctx.fillText(Fmt.moeda(soma + taxa), fimX - 24, ty + 50);
+    ctx.fillText(Fmt.moeda(soma + taxa), fimX - 26, ty + 55);
 
-    /* ---------- pagamento e agradecimento ---------- */
-    const yBase = ty + 76 + 30;
+    /* ======== pagamento e agradecimento ======== */
+    ty += 84 + 28;
     const emp = dados.empresa;
-    if (emp.pixChave || emp.pixTitular) {
+
+    if (m.temPix) {
       ctx.strokeStyle = BORDA;
       ctx.lineWidth = 1.5;
-      caixa(ctx, M, yBase, 470, 118, 10);
+      ctx.beginPath();
+      ctx.moveTo(M, ty + .5);
+      ctx.lineTo(M + 300, ty + .5);
       ctx.stroke();
       ctx.fillStyle = FRACO;
-      ctx.font = fonte('bold', 20);
+      ctx.font = fonte('bold', 19);
       ctx.textAlign = 'left';
-      ctx.fillText('DADOS PARA PAGAMENTO — PIX', M + 20, yBase + 32);
-      ctx.fillStyle = TEXTO;
-      const tamPix = encolher(ctx, emp.pixChave || '', 430, 'bold', 30, 16);
-      ctx.font = fonte('bold', tamPix);
-      ctx.fillText(emp.pixChave || '', M + 20, yBase + 72);
+      ctx.fillText('DADOS PARA PAGAMENTO', M, ty + 30);
+
+      const yBox = ty + 44;
+      ctx.strokeStyle = BORDA;
+      caixa(ctx, M, yBox, 480, 128, 10);
+      ctx.stroke();
+      marcaPix(ctx, M + 40, yBox + 40, 30);
       ctx.fillStyle = FRACO;
-      ctx.font = fonte('normal', 22);
-      ctx.fillText(emp.pixTitular || '', M + 20, yBase + 102);
+      ctx.font = fonte('bold', 18);
+      ctx.fillText('CHAVE PIX', M + 24, yBox + 76);
+      ctx.fillStyle = TEXTO;
+      const tamPix = encolher(ctx, emp.pixChave || '', 430, 'bold', 30, 15);
+      ctx.font = fonte('bold', tamPix);
+      ctx.fillText(emp.pixChave || '', M + 24, yBox + 104);
+      if (emp.pixTitular) {
+        ctx.fillStyle = FRACO;
+        ctx.font = fonte('normal', 20);
+        ctx.fillText(emp.pixTitular, M + 24, yBox + 122);
+      }
     }
 
     ctx.fillStyle = VERDE;
-    ctx.font = fonte('bold italic', 32);
+    ctx.font = fonte('bold italic', 34, SERIF);
     ctx.textAlign = 'right';
-    ctx.fillText('Obrigado pela preferência!', fimX, yBase + 46);
-    if (emp.telefone) {
-      ctx.fillStyle = FRACO;
-      ctx.font = fonte('normal', 24);
-      ctx.fillText(emp.telefone, fimX, yBase + 84);
-    }
+    ctx.fillText('Obrigado pela preferência!', fimX, ty + 38);
 
-    /* ---------- barra final ---------- */
-    const alturaBarra = 52;
-    const yBarra = medida.altura - alturaBarra;
+    const ySelos = ty + 100;
+    const xSelos = fimX - 290;
+    selo(ctx, xSelos, ySelos, 'FRESCOR', (c, x, yy) => folha(c, x - 15, yy + 4, 30, VERDE_MEIO));
+    selo(ctx, xSelos + 130, ySelos, 'QUALIDADE', (c, x, yy) => estrela(c, x, yy, 17, VERDE_MEIO));
+    selo(ctx, xSelos + 260, ySelos, 'SAÚDE', (c, x, yy) => coracao(c, x, yy + 4, 20, VERDE_MEIO));
+
+    /* ======== barra final ======== */
+    const alturaBarra = 54;
+    const yBarra = m.altura - alturaBarra;
     ctx.fillStyle = VERDE;
     ctx.fillRect(0, yBarra, L, alturaBarra);
     ctx.fillStyle = '#dff0e4';
     ctx.font = fonte('bold', 21);
     ctx.textAlign = 'left';
-    ctx.fillText(emp.telefone || emp.nome || '', M, yBarra + 33);
+    ctx.fillText(emp.telefone || emp.nome || '', M, yBarra + 34);
     ctx.textAlign = 'right';
-    ctx.fillText(emp.slogan || '', fimX, yBarra + 33);
+    ctx.fillText(emp.slogan || '', fimX, yBarra + 34);
     ctx.textAlign = 'left';
   }
 
-  function carregarLogo(dataUrl) {
+  function carregarLogo(origem) {
     return new Promise(resolve => {
-      if (!dataUrl) return resolve(null);
+      if (!origem) return resolve(null);
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => resolve(null);
-      img.src = dataUrl;
+      img.src = origem;
     });
   }
 

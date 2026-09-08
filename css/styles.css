@@ -3,6 +3,10 @@
    (a barraca fica no sol) e as ações principais ao alcance do polegar.
    =================================================================== */
 :root {
+  /* O app tem cores próprias: sem isto o modo escuro do celular
+     inverte os controles nativos e some com o texto. */
+  color-scheme: light;
+
   --verde-escuro: #14532d;
   --verde: #1f7a3f;
   --verde-vivo: #22a04f;
@@ -35,8 +39,11 @@ h2 { font-size: 1.05rem; margin: 0 0 .9rem; }
 h3 { font-size: .95rem; margin: 1.7rem 0 .7rem; color: var(--verde-escuro); }
 
 /* ===================== topo ===================== */
+/* Topo e abas grudam juntos: sem depender da altura exata da barra,
+   que muda de aparelho para aparelho. */
+.cabecalho { position: sticky; top: 0; z-index: 20; }
+
 .topo {
-  position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: .7rem;
   background: var(--verde-escuro); color: #fff;
   padding: .7rem .9rem;
@@ -64,8 +71,6 @@ h3 { font-size: .95rem; margin: 1.7rem 0 .7rem; color: var(--verde-escuro); }
 
 /* ===================== abas ===================== */
 .abas {
-  position: sticky; z-index: 19;
-  top: calc(54px + env(safe-area-inset-top));
   display: flex; gap: .4rem; padding: .5rem .9rem;
   background: var(--fundo); border-bottom: 1px solid var(--borda);
 }
@@ -91,6 +96,10 @@ body[data-vista="pedido"] #vistaFoto,
 body[data-vista="foto"] #vistaPedido { display: none; }
 .vista { display: grid; gap: .8rem; align-content: start; }
 
+/* Item de grid/flex não encolhe sozinho: sem isto, uma fila de chips que
+   não quebra linha estica o cartão inteiro e a tela rola de lado. */
+.conteudo > *, .vista > *, .cartao > *, .dupla > *, .item-linha > *, .linha-add > * { min-width: 0; }
+
 .cartao {
   background: var(--papel); border-radius: var(--raio);
   padding: 1rem; box-shadow: var(--sombra);
@@ -110,6 +119,11 @@ body[data-vista="foto"] #vistaPedido { display: none; }
   font-size: .78rem; font-weight: 600; letter-spacing: .02em;
   text-transform: uppercase; color: var(--texto-fraco);
 }
+/* O Safari põe sombra e borda próprias; data e arquivo mantêm o controle nativo. */
+input:not([type="date"]):not([type="file"]), textarea, button {
+  -webkit-appearance: none; appearance: none;
+}
+input, textarea, button, select, .chip, .aba, .alt { touch-action: manipulation; }
 input, select {
   display: block; width: 100%; min-height: var(--toque);
   padding: .7rem .8rem;
@@ -119,7 +133,8 @@ input, select {
 }
 input:focus, select:focus { outline: none; border-color: var(--verde); box-shadow: 0 0 0 3px rgba(31, 122, 63, .16); }
 input[type="file"] { padding: .55rem; font-size: .9rem; }
-input[type="date"] { min-height: var(--toque); }
+/* o iPhone alinha a data ao centro por padrão */
+input[type="date"] { min-height: var(--toque); text-align: left; }
 .opcional { text-transform: none; font-weight: 400; color: #9aa8a0; }
 
 .campo-linha { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin: 1rem 0 0; }
@@ -153,8 +168,9 @@ input[type="date"] { min-height: var(--toque); }
 /* ===================== chips ===================== */
 .chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1rem; }
 .chips-rolagem {
-  flex-wrap: nowrap; overflow-x: auto; margin: 0 -1rem 1rem; padding: 0 1rem .2rem;
-  scrollbar-width: none;
+  flex-wrap: nowrap; overflow-x: auto; max-width: 100%;
+  margin: 0 -1rem 1rem; padding: 0 1rem .2rem;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .chips-rolagem::-webkit-scrollbar { display: none; }
 .chip {
@@ -205,7 +221,7 @@ input[type="date"] { min-height: var(--toque); }
   display: flex; align-items: center; gap: .8rem;
   padding: .7rem .9rem; padding-bottom: calc(.7rem + env(safe-area-inset-bottom));
   background: rgba(255, 255, 255, .96); border-top: 1px solid var(--borda);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .barra-total { flex: 1; min-width: 0; line-height: 1.15; }
 .barra-total small { display: block; font-size: .74rem; color: var(--texto-fraco); }
@@ -298,13 +314,21 @@ input[type="date"] { min-height: var(--toque); }
 }
 
 /* ===================================================================
-   Mensagem colada do cliente e lista com preço editável em cada linha
+   Alternador de entrada, mensagem colada e lista com preço editável
    =================================================================== */
-.cartao-mensagem { padding: .4rem 1rem; }
-.cartao-mensagem .detalhes summary { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
-.summary-titulo { font-size: 1rem; }
-.summary-dica { font-size: .78rem; font-weight: 500; color: var(--texto-fraco); }
-.cartao-mensagem .dica { margin-top: .2rem; }
+.alternador {
+  display: flex; gap: .3rem; margin: -.3rem -.3rem 1rem;
+  padding: .3rem; background: #eef1ec; border-radius: 13px;
+}
+.alt {
+  flex: 1; min-height: 44px;
+  font: inherit; font-size: .93rem; font-weight: 600; cursor: pointer;
+  color: var(--texto-fraco); background: transparent; border: 0; border-radius: 10px;
+}
+.alt[aria-selected="true"] { background: #fff; color: var(--verde-escuro); box-shadow: var(--sombra); }
+.dupla { display: flex; gap: .8rem; }
+.dupla > div { flex: 1; }
+.dica-total { margin: 1rem 0 0; text-align: center; }
 
 textarea {
   display: block; width: 100%; padding: .8rem;
