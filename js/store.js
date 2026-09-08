@@ -14,6 +14,7 @@ const Store = (() => {
       logo: ''
     },
     atendentes: [],
+    frequentes: [],         // produtos usados recentemente, para lançar com um toque
     adminHash: '',          // vazio = ainda usando a senha padrão
     proximoId: 1
   });
@@ -61,6 +62,16 @@ const Store = (() => {
 
     get empresa() { return config.empresa; },
     get atendentes() { return config.atendentes; },
+    get frequentes() { return config.frequentes; },
+
+    /* Guarda os últimos produtos digitados para virarem atalhos na tela. */
+    registrarProduto(nome) {
+      nome = nome.trim();
+      if (!nome) return;
+      config.frequentes = [nome, ...config.frequentes.filter(p => p.toLowerCase() !== nome.toLowerCase())].slice(0, 12);
+      salvar();
+    },
+
     usandoSenhaPadrao() { return !config.adminHash; },
 
     async conferirSenha(senha) {

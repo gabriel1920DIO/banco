@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pedidos da Barraca">
+  <rect width="512" height="512" rx="112" fill="#14532d"/>
+  <path d="M256 132c-62 0-112 44-112 104 0 58 46 104 112 104s112-46 112-104c0-60-50-104-112-104z" fill="none"/>
+  <!-- folha -->
+  <path d="M150 362c-14-96 44-176 158-186 10 60-6 110-44 142-30 25-68 37-114 44z" fill="#7fdc9b"/>
+  <path d="M150 362c40-58 84-96 134-118" fill="none" stroke="#14532d" stroke-width="16" stroke-linecap="round"/>
+  <!-- etiqueta de preço -->
+  <rect x="228" y="286" width="152" height="96" rx="20" fill="#fff"/>
+  <text x="304" y="352" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="bold"
+        fill="#14532d" text-anchor="middle">R$</text>
+</svg>

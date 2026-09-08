@@ -4,193 +4,239 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14532d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pedidos">
   <title>Pedidos da Barraca</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A5%AC%3C/text%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icones/icone.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icones/icone-192.png">
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
+<body data-vista="pedido">
 
-<header class="topbar">
-  <div class="topbar-brand">
-    <span class="topbar-logo" id="topbarLogo">🥬</span>
-    <div>
-      <strong id="topbarNome">Minha Barraca</strong>
-      <small id="topbarSub">Pedidos da feira</small>
-    </div>
+<header class="topo">
+  <span class="topo-logo" id="topoLogo">🥬</span>
+  <div class="topo-nome">
+    <strong id="topoNome">Minha Barraca</strong>
+    <small id="topoSub">Pedidos da feira</small>
   </div>
-  <button type="button" class="btn-icon" id="btnAdmin" title="Área do administrador">⚙️</button>
+  <button type="button" class="botao-topo" id="btnAdmin" aria-label="Área do administrador">⚙️</button>
 </header>
 
-<main class="layout">
+<nav class="abas" role="tablist" aria-label="Seções">
+  <button type="button" class="aba" role="tab" data-ir="pedido" aria-selected="true">Pedido</button>
+  <button type="button" class="aba" role="tab" data-ir="foto" aria-selected="false">
+    Foto <span class="pill" id="pillItens">0</span>
+  </button>
+</nav>
 
-  <!-- ============ COLUNA DO FORMULÁRIO ============ -->
-  <section class="painel">
+<main class="conteudo">
 
-    <div class="card">
-      <h2>Dados do pedido</h2>
-      <div class="grid-2">
-        <label>Cliente
-          <input type="text" id="cliente" placeholder="Nome do cliente" autocomplete="off">
+  <!-- ==================== PEDIDO ==================== -->
+  <section id="vistaPedido" class="vista">
+
+    <div class="cartao">
+      <label class="campo">
+        <span class="campo-rotulo">Cliente</span>
+        <input type="text" id="cliente" placeholder="Nome do cliente"
+               autocomplete="off" autocapitalize="words" enterkeyhint="next">
+      </label>
+
+      <span class="campo-rotulo">Atendente</span>
+      <div class="chips" id="chipsAtendente"></div>
+      <p class="aviso" id="avisoAtendente" hidden>
+        Nenhum atendente cadastrado — toque em ⚙️ para o administrador cadastrar.
+      </p>
+
+      <details class="detalhes" id="detalhesExtra">
+        <summary>Endereço e data</summary>
+        <label class="campo">
+          <span class="campo-rotulo">Endereço de entrega</span>
+          <input type="text" id="endereco" placeholder="Rua, número, bairro"
+                 autocomplete="off" autocapitalize="words">
         </label>
-        <label>Data
+        <label class="campo">
+          <span class="campo-rotulo">Data</span>
           <input type="date" id="data">
         </label>
-      </div>
-      <label>Endereço <span class="opcional">(opcional)</span>
-        <input type="text" id="endereco" placeholder="Rua, número, bairro" autocomplete="off">
-      </label>
-      <label>Atendente
-        <select id="atendente"></select>
-      </label>
-      <p class="aviso" id="avisoAtendente" hidden>
-        Nenhum atendente cadastrado. Peça ao administrador para cadastrar em ⚙️.
-      </p>
+      </details>
     </div>
 
-    <div class="card">
+    <div class="cartao cartao-mensagem">
+      <details class="detalhes" id="detalhesMensagem">
+        <summary>
+          <span class="summary-titulo">📋 Colar a mensagem do cliente</span>
+          <span class="summary-dica">monta a lista sozinho</span>
+        </summary>
+        <p class="dica">
+          Cole aqui o que o cliente mandou no WhatsApp. O app separa os produtos e as
+          quantidades e você só coloca os preços.
+        </p>
+        <textarea id="mensagem" rows="5" placeholder="Bom dia! Queria:&#10;2 kg de tomate&#10;1 caixa de morango&#10;meia dúzia de ovos"></textarea>
+        <div class="acoes">
+          <button type="button" class="botao botao-principal botao-grande" id="btnLerMensagem">Montar lista</button>
+          <button type="button" class="botao botao-grande" id="btnLimparMensagem">Limpar</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="cartao">
       <h2>Adicionar produto</h2>
       <form id="formItem" autocomplete="off">
-        <label>Produto
-          <input type="text" id="itemDesc" placeholder="Ex.: Tomate italiano" required>
+        <label class="campo">
+          <span class="campo-rotulo">Produto</span>
+          <input type="text" id="itemDesc" placeholder="Ex.: Tomate italiano"
+                 autocapitalize="sentences" enterkeyhint="next" required>
         </label>
-        <div class="grid-3">
-          <label>Qtd.
-            <input type="text" id="itemQtd" placeholder="1" inputmode="decimal">
-          </label>
-          <label>Unid.
-            <select id="itemUnidade">
-              <option value="un">un</option>
-              <option value="kg">kg</option>
-              <option value="cx">cx</option>
-              <option value="ctla">ctla</option>
-              <option value="dz">dz</option>
-              <option value="mç">mç</option>
-              <option value="pct">pct</option>
-              <option value="bdj">bdj</option>
-              <option value="sc">sc</option>
-              <option value="">sem unid.</option>
-            </select>
-          </label>
-          <label>Valor total (R$)
-            <input type="text" id="itemValor" placeholder="0,00" inputmode="decimal" required>
-          </label>
+        <div class="chips chips-rolagem" id="chipsFrequentes" hidden></div>
+
+        <span class="campo-rotulo">Quantidade</span>
+        <div class="linha-qtd">
+          <button type="button" class="botao-passo" id="btnMenos" aria-label="Diminuir">−</button>
+          <input type="text" id="itemQtd" value="1" inputmode="decimal" aria-label="Quantidade">
+          <button type="button" class="botao-passo" id="btnMais" aria-label="Aumentar">+</button>
         </div>
-        <p class="dica">Digite sempre o <strong>valor total</strong> do produto — não existe valor unitário.</p>
-        <button type="submit" class="btn btn-primary btn-bloco">Adicionar ao pedido</button>
+        <div class="chips chips-rolagem" id="chipsUnidade"></div>
+
+        <label class="campo campo-destaque">
+          <span class="campo-rotulo">Valor total do produto</span>
+          <div class="moeda">
+            <span class="moeda-prefixo">R$</span>
+            <input type="text" id="itemValor" placeholder="0,00" inputmode="decimal"
+                   enterkeyhint="done" required>
+          </div>
+        </label>
+        <p class="dica">Sem valor unitário: você digita o preço fechado do produto.</p>
+
+        <button type="submit" class="botao botao-principal botao-grande">Adicionar ao pedido</button>
       </form>
     </div>
 
-    <div class="card">
-      <div class="card-head">
-        <h2>Itens do pedido</h2>
-        <button type="button" class="btn btn-fantasma" id="btnLimpar">Novo pedido</button>
+    <div class="cartao">
+      <div class="cartao-topo">
+        <h2>Itens <span class="contador" id="contadorItens">0</span></h2>
+        <button type="button" class="botao botao-texto" id="btnLimpar">Novo pedido</button>
       </div>
-      <ul class="lista-itens" id="listaItens"></ul>
-      <p class="vazio" id="listaVazia">Nenhum item adicionado ainda.</p>
 
-      <label class="linha-taxa">Taxa de entrega (R$)
-        <input type="text" id="taxaEntrega" placeholder="0,00" inputmode="decimal">
+      <ul class="itens" id="listaItens"></ul>
+      <p class="vazio" id="listaVazia">Nenhum item ainda. Adicione o primeiro produto acima.</p>
+
+      <label class="campo campo-linha">
+        <span class="campo-rotulo">Taxa de entrega</span>
+        <div class="moeda moeda-pequena">
+          <span class="moeda-prefixo">R$</span>
+          <input type="text" id="taxaEntrega" placeholder="0,00" inputmode="decimal">
+        </div>
       </label>
-
-      <div class="total-linha">
-        <span>Total geral</span>
-        <strong id="totalGeral">R$ 0,00</strong>
-      </div>
     </div>
   </section>
 
-  <!-- ============ COLUNA DA FOTO ============ -->
-  <section class="painel">
-    <div class="card">
-      <div class="card-head">
+  <!-- ==================== FOTO ==================== -->
+  <section id="vistaFoto" class="vista">
+    <div class="cartao">
+      <div class="cartao-topo">
         <h2>Foto do pedido</h2>
-        <span class="badge" id="badgeItens">0 itens</span>
+        <button type="button" class="botao botao-texto" id="btnVoltar">Editar</button>
       </div>
-      <div class="preview" id="preview">
+      <div class="previa">
         <canvas id="canvasPedido"></canvas>
       </div>
       <div class="acoes">
-        <button type="button" class="btn btn-primary" id="btnCompartilhar">Compartilhar</button>
-        <button type="button" class="btn" id="btnBaixar">Baixar imagem</button>
+        <button type="button" class="botao botao-principal botao-grande" id="btnCompartilhar">Compartilhar</button>
+        <button type="button" class="botao botao-grande" id="btnBaixar">Baixar</button>
       </div>
       <p class="dica" id="dicaCompartilhar"></p>
     </div>
   </section>
 </main>
 
-<!-- ============ MODAL DO ADMINISTRADOR ============ -->
-<dialog id="dlgAdmin" class="modal">
-  <form method="dialog" class="modal-fechar"><button class="btn-icon" value="fechar">✕</button></form>
+<!-- ==================== BARRA FIXA ==================== -->
+<div class="barra">
+  <div class="barra-total">
+    <small>Total geral</small>
+    <strong id="totalGeral">R$ 0,00</strong>
+  </div>
+  <button type="button" class="botao botao-principal botao-barra" id="btnAcao">Ver foto</button>
+</div>
 
-  <!-- Login -->
-  <div id="adminLogin">
-    <h2>Área do administrador</h2>
-    <p class="dica">Apenas o administrador pode cadastrar, editar ou remover atendentes.</p>
-    <label>Senha
-      <input type="password" id="adminSenha" autocomplete="current-password">
-    </label>
-    <p class="erro" id="adminErro" hidden>Senha incorreta.</p>
-    <button type="button" class="btn btn-primary btn-bloco" id="btnEntrar">Entrar</button>
-    <p class="dica" id="dicaSenhaPadrao"></p>
+<!-- ==================== ADMINISTRADOR ==================== -->
+<dialog id="dlgAdmin" class="folha">
+  <div class="folha-topo">
+    <strong id="folhaTitulo">Administrador</strong>
+    <button type="button" class="botao-topo" id="btnFechar" aria-label="Fechar">✕</button>
   </div>
 
-  <!-- Painel -->
-  <div id="adminPainel" hidden>
-    <div class="card-head">
-      <h2>Administração</h2>
-      <button type="button" class="btn btn-fantasma" id="btnSair">Sair</button>
-    </div>
-
-    <h3>Atendentes</h3>
-    <ul class="lista-itens" id="listaAtendentes"></ul>
-    <div class="grid-add">
-      <input type="text" id="novoAtendente" placeholder="Nome do atendente" autocomplete="off">
-      <button type="button" class="btn btn-primary" id="btnAddAtendente">Adicionar</button>
-    </div>
-
-    <h3>Dados da barraca</h3>
-    <label>Nome
-      <input type="text" id="cfgNome" placeholder="Minha Barraca">
-    </label>
-    <div class="grid-2">
-      <label>Telefone / WhatsApp
-        <input type="text" id="cfgTelefone" placeholder="(11) 90000-0000">
+  <div class="folha-corpo">
+    <div id="adminLogin">
+      <p class="dica">Só o administrador cadastra, edita ou remove atendentes.</p>
+      <label class="campo">
+        <span class="campo-rotulo">Senha</span>
+        <input type="password" id="adminSenha" autocomplete="current-password" enterkeyhint="go">
       </label>
-      <label>Slogan
+      <p class="erro" id="adminErro" hidden>Senha incorreta.</p>
+      <button type="button" class="botao botao-principal botao-grande" id="btnEntrar">Entrar</button>
+      <p class="dica" id="dicaSenhaPadrao"></p>
+    </div>
+
+    <div id="adminPainel" hidden>
+      <h3>Atendentes</h3>
+      <ul class="itens" id="listaAtendentes"></ul>
+      <div class="linha-add">
+        <input type="text" id="novoAtendente" placeholder="Nome do atendente"
+               autocomplete="off" autocapitalize="words" enterkeyhint="done">
+        <button type="button" class="botao botao-principal" id="btnAddAtendente">Adicionar</button>
+      </div>
+
+      <h3>Dados da barraca</h3>
+      <label class="campo">
+        <span class="campo-rotulo">Nome</span>
+        <input type="text" id="cfgNome" placeholder="Minha Barraca" autocapitalize="words">
+      </label>
+      <label class="campo">
+        <span class="campo-rotulo">Telefone / WhatsApp</span>
+        <input type="tel" id="cfgTelefone" placeholder="(11) 90000-0000">
+      </label>
+      <label class="campo">
+        <span class="campo-rotulo">Slogan</span>
         <input type="text" id="cfgSlogan" placeholder="FRESCOR • QUALIDADE • SAÚDE">
       </label>
-    </div>
-    <div class="grid-2">
-      <label>Chave PIX
+      <label class="campo">
+        <span class="campo-rotulo">Chave PIX</span>
         <input type="text" id="cfgPixChave" placeholder="CPF, CNPJ, telefone ou e-mail">
       </label>
-      <label>Titular do PIX
-        <input type="text" id="cfgPixTitular" placeholder="Nome do titular">
+      <label class="campo">
+        <span class="campo-rotulo">Titular do PIX</span>
+        <input type="text" id="cfgPixTitular" placeholder="Nome do titular" autocapitalize="words">
       </label>
-    </div>
-    <label>Logo <span class="opcional">(opcional)</span>
-      <input type="file" id="cfgLogo" accept="image/*">
-    </label>
-    <button type="button" class="btn btn-fantasma" id="btnRemoverLogo">Remover logo</button>
+      <label class="campo">
+        <span class="campo-rotulo">Logo <span class="opcional">(opcional)</span></span>
+        <input type="file" id="cfgLogo" accept="image/*">
+      </label>
+      <button type="button" class="botao" id="btnRemoverLogo">Remover logo</button>
 
-    <h3>Senha do administrador</h3>
-    <div class="grid-2">
-      <label>Nova senha
+      <h3>Senha do administrador</h3>
+      <label class="campo">
+        <span class="campo-rotulo">Nova senha</span>
         <input type="password" id="cfgSenha1" autocomplete="new-password">
       </label>
-      <label>Repetir senha
+      <label class="campo">
+        <span class="campo-rotulo">Repetir senha</span>
         <input type="password" id="cfgSenha2" autocomplete="new-password">
       </label>
-    </div>
-    <button type="button" class="btn" id="btnTrocarSenha">Salvar nova senha</button>
+      <button type="button" class="botao" id="btnTrocarSenha">Salvar nova senha</button>
 
-    <p class="ok" id="adminOk" hidden>Salvo!</p>
+      <p class="ok" id="adminOk" hidden>Salvo!</p>
+      <button type="button" class="botao botao-texto botao-grande" id="btnSair">Sair da administração</button>
+    </div>
   </div>
 </dialog>
 
-<div class="toast" id="toast" hidden></div>
+<div class="aviso-flutuante" id="toast" hidden></div>
 
 <script src="js/store.js"></script>
+<script src="js/parser.js"></script>
 <script src="js/receipt.js"></script>
 <script src="js/app.js"></script>
 </body>

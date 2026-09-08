@@ -1,32 +1,41 @@
-/* Ligação entre a tela e o pedido. Tudo roda no navegador, sem servidor. */
+/* Liga a tela ao pedido. Tudo roda no navegador, sem servidor. */
 (() => {
   const $ = sel => document.querySelector(sel);
   const hoje = () => new Date().toISOString().slice(0, 10);
+  const UNIDADES = ['un', 'kg', 'g', 'cx', 'ctla', 'dz', 'mç', 'pct', 'bdj', 'sc', 'L', 'pé'];
 
   const el = {
     cliente: $('#cliente'), endereco: $('#endereco'), data: $('#data'),
-    atendente: $('#atendente'), avisoAtendente: $('#avisoAtendente'),
+    chipsAtendente: $('#chipsAtendente'), avisoAtendente: $('#avisoAtendente'),
     formItem: $('#formItem'), itemDesc: $('#itemDesc'), itemQtd: $('#itemQtd'),
-    itemUnidade: $('#itemUnidade'), itemValor: $('#itemValor'),
-    listaItens: $('#listaItens'), listaVazia: $('#listaVazia'),
-    taxaEntrega: $('#taxaEntrega'), totalGeral: $('#totalGeral'),
-    badgeItens: $('#badgeItens'), canvas: $('#canvasPedido'),
-    btnLimpar: $('#btnLimpar'), btnBaixar: $('#btnBaixar'),
-    btnCompartilhar: $('#btnCompartilhar'), dicaCompartilhar: $('#dicaCompartilhar'),
-    topbarNome: $('#topbarNome'), topbarSub: $('#topbarSub'), topbarLogo: $('#topbarLogo'),
+    itemValor: $('#itemValor'), chipsUnidade: $('#chipsUnidade'), chipsFrequentes: $('#chipsFrequentes'),
+    listaItens: $('#listaItens'), listaVazia: $('#listaVazia'), contadorItens: $('#contadorItens'),
+    taxaEntrega: $('#taxaEntrega'), totalGeral: $('#totalGeral'), pillItens: $('#pillItens'),
+    canvas: $('#canvasPedido'), btnAcao: $('#btnAcao'),
+    mensagem: $('#mensagem'), detalhesMensagem: $('#detalhesMensagem'),
+    topoNome: $('#topoNome'), topoSub: $('#topoSub'), topoLogo: $('#topoLogo'),
     toast: $('#toast')
   };
 
   let pedido = Store.lerPedido() || { cliente: '', endereco: '', data: hoje(), atendenteId: null, itens: [], taxa: 0 };
+  let unidadeAtual = 'un';
   let logoImg = null;
 
-  /* ---------- utilidades ---------- */
+  /* ===================== utilidades ===================== */
   let tempoToast;
   function toast(msg) {
     el.toast.textContent = msg;
     el.toast.hidden = false;
     clearTimeout(tempoToast);
-    tempoToast = setTimeout(() => { el.toast.hidden = true; }, 2600);
+    tempoToast = setTimeout(() => { el.toast.hidden = true; }, 3000);
+  }
+
+  function vibrar(ms = 12) {
+    if (navigator.vibrate) try { navigator.vibrate(ms); } catch { /* ignora */ }
+  }
+
+  function moedaEditavel(valor) {
+    return valor ? valor.toFixed(2).replace('.', ',') : '';
   }
 
   function nomeAtendente() {
@@ -34,123 +43,235 @@
     return a ? a.nome : '';
   }
 
-  function dadosDoPedido() {
-    return {
-      cliente: pedido.cliente,
-      endereco: pedido.endereco,
-      data: pedido.data,
-      atendente: nomeAtendente(),
-      itens: pedido.itens,
-      taxa: pedido.taxa,
-      empresa: Store.empresa
-    };
+  function faltamPrecos() {
+    return pedido.itens.filter(i => !i.valor).length;
   }
 
-  /* ---------- desenho ---------- */
+  /* ===================== desenho da foto ===================== */
   let pendente = false;
   function desenhar() {
     if (pendente) return;
     pendente = true;
     requestAnimationFrame(() => {
       pendente = false;
-      Receipt.render(el.canvas, dadosDoPedido(), { logo: logoImg });
+      Receipt.render(el.canvas, {
+        cliente: pedido.cliente, endereco: pedido.endereco, data: pedido.data,
+        atendente: nomeAtendente(), itens: pedido.itens, taxa: pedido.taxa,
+        empresa: Store.empresa
+      }, { logo: logoImg });
     });
   }
 
-  function salvar() {
-    Store.salvarPedido(pedido);
-  }
-
-  /* ---------- itens ---------- */
-  function totalItens() {
-    return pedido.itens.reduce((s, i) => s + i.valor, 0);
-  }
-
-  function pintarItens() {
-    el.listaItens.innerHTML = '';
-    pedido.itens.forEach((item, i) => {
-      const li = document.createElement('li');
-
-      const info = document.createElement('div');
-      info.className = 'item-info';
-      const nome = document.createElement('span');
-      nome.className = 'item-nome';
-      nome.textContent = `${i + 1}. ${item.desc}`;
-      const meta = document.createElement('span');
-      meta.className = 'item-meta';
-      meta.textContent = item.quantidade;
-      info.append(nome, meta);
-
-      const valor = document.createElement('span');
-      valor.className = 'item-valor';
-      valor.textContent = Fmt.moeda(item.valor);
-
-      const remover = document.createElement('button');
-      remover.type = 'button';
-      remover.className = 'btn-remover';
-      remover.textContent = '✕';
-      remover.title = 'Remover item';
-      remover.addEventListener('click', () => {
-        pedido.itens.splice(i, 1);
-        atualizar();
-      });
-
-      li.append(info, valor, remover);
-      el.listaItens.append(li);
-    });
-
+  function atualizarTotais() {
+    const soma = pedido.itens.reduce((s, i) => s + i.valor, 0) + pedido.taxa;
+    el.totalGeral.textContent = Fmt.moeda(soma);
+    el.contadorItens.textContent = pedido.itens.length;
+    el.pillItens.textContent = pedido.itens.length;
     el.listaVazia.hidden = pedido.itens.length > 0;
-    el.badgeItens.textContent = pedido.itens.length === 1 ? '1 item' : `${pedido.itens.length} itens`;
-    el.totalGeral.textContent = Fmt.moeda(totalItens() + pedido.taxa);
+
+    const faltam = faltamPrecos();
+    el.btnAcao.textContent = document.body.dataset.vista === 'foto' ? 'Compartilhar'
+      : faltam ? `Falta${faltam > 1 ? 'm' : ''} ${faltam} preço${faltam > 1 ? 's' : ''}` : 'Ver foto';
+    el.btnAcao.classList.toggle('botao-alerta', document.body.dataset.vista !== 'foto' && faltam > 0);
   }
 
   function atualizar() {
-    pintarItens();
+    atualizarTotais();
     desenhar();
-    salvar();
+    Store.salvarPedido(pedido);
   }
 
+  /* ===================== lista de itens ===================== */
+  /* Cada linha tem os três campos editáveis: dá para colar a mensagem do
+     cliente, deixar tudo montado e depois só tocar em cada preço. */
+  function pintarItens() {
+    el.listaItens.innerHTML = '';
+
+    pedido.itens.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.className = 'item';
+
+      const desc = document.createElement('input');
+      desc.className = 'item-desc';
+      desc.value = item.desc;
+      desc.setAttribute('aria-label', 'Produto');
+      desc.addEventListener('input', () => { item.desc = desc.value; atualizar(); });
+
+      const linha = document.createElement('div');
+      linha.className = 'item-linha';
+
+      const qtd = document.createElement('input');
+      qtd.className = 'item-qtd';
+      qtd.value = item.quantidade;
+      qtd.setAttribute('aria-label', 'Quantidade');
+      qtd.addEventListener('input', () => { item.quantidade = qtd.value; atualizar(); });
+
+      const moeda = document.createElement('div');
+      moeda.className = 'moeda moeda-item';
+      const prefixo = document.createElement('span');
+      prefixo.className = 'moeda-prefixo';
+      prefixo.textContent = 'R$';
+      const valor = document.createElement('input');
+      valor.className = 'item-valor';
+      valor.inputMode = 'decimal';
+      valor.placeholder = '0,00';
+      valor.value = moedaEditavel(item.valor);
+      valor.setAttribute('aria-label', 'Valor total do produto');
+      valor.addEventListener('input', () => {
+        item.valor = Fmt.paraNumero(valor.value);
+        li.classList.toggle('sem-preco', !item.valor);
+        atualizar();
+      });
+      valor.addEventListener('blur', () => { valor.value = moedaEditavel(item.valor); });
+      /* Enter pula para o preço do próximo item — bom para preencher em série. */
+      valor.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        const campos = [...el.listaItens.querySelectorAll('.item-valor')];
+        (campos[campos.indexOf(valor) + 1] || valor).focus();
+      });
+      moeda.append(prefixo, valor);
+
+      const remover = document.createElement('button');
+      remover.type = 'button';
+      remover.className = 'botao-remover';
+      remover.textContent = '✕';
+      remover.setAttribute('aria-label', `Remover ${item.desc}`);
+      remover.addEventListener('click', () => {
+        pedido.itens.splice(i, 1);
+        vibrar();
+        pintarItens();
+        atualizar();
+      });
+
+      linha.append(qtd, moeda, remover);
+      li.append(desc, linha);
+      li.classList.toggle('sem-preco', !item.valor);
+      el.listaItens.append(li);
+    });
+
+    atualizarTotais();
+  }
+
+  function focarPrimeiroPrecoVazio() {
+    const campo = [...el.listaItens.querySelectorAll('.item-valor')].find(c => !Fmt.paraNumero(c.value));
+    if (campo) { campo.focus(); campo.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    return !!campo;
+  }
+
+  /* ===================== adicionar um produto ===================== */
   el.formItem.addEventListener('submit', ev => {
     ev.preventDefault();
     const desc = el.itemDesc.value.trim();
-    const valor = Fmt.paraNumero(el.itemValor.value);
-    if (!desc) return;
-    if (valor <= 0) { toast('Informe o valor total do produto.'); el.itemValor.focus(); return; }
+    if (!desc) { el.itemDesc.focus(); return; }
 
-    const qtd = el.itemQtd.value.trim() || '1';
-    const unidade = el.itemUnidade.value;
-    const numero = Fmt.paraNumero(qtd);
+    const valor = Fmt.paraNumero(el.itemValor.value);
+    const bruta = el.itemQtd.value.trim() || '1';
+    const numero = Fmt.paraNumero(bruta);
+
     pedido.itens.push({
       desc,
       /* aceita número ("1,5") ou texto livre ("meia dúzia") */
-      quantidade: (numero > 0 ? Fmt.numero(numero) : qtd) + (unidade ? ' ' + unidade : ''),
+      quantidade: (numero > 0 ? Fmt.numero(numero) : bruta) + (unidadeAtual ? ' ' + unidadeAtual : ''),
       valor
     });
+    Store.registrarProduto(desc);
 
-    el.formItem.reset();
-    el.itemUnidade.value = unidade;   // mantém a última unidade usada
+    el.itemDesc.value = '';
+    el.itemValor.value = '';
+    el.itemQtd.value = '1';
     el.itemDesc.focus();
+    vibrar();
+    pintarFrequentes();
+    pintarItens();
     atualizar();
   });
 
-  /* ---------- campos do pedido ---------- */
+  el.itemValor.addEventListener('blur', () => {
+    const v = Fmt.paraNumero(el.itemValor.value);
+    el.itemValor.value = v ? moedaEditavel(v) : '';
+  });
+
+  $('#btnMenos').addEventListener('click', () => passo(-1));
+  $('#btnMais').addEventListener('click', () => passo(1));
+  function passo(delta) {
+    const atual = Fmt.paraNumero(el.itemQtd.value) || 0;
+    const novo = Math.max(0, Math.round((atual + delta) * 1000) / 1000);
+    el.itemQtd.value = Fmt.numero(novo || 1);
+    vibrar(8);
+  }
+
+  /* ===================== mensagem do cliente ===================== */
+  $('#btnLerMensagem').addEventListener('click', () => {
+    const texto = el.mensagem.value;
+    if (!texto.trim()) { el.mensagem.focus(); return; }
+
+    const lido = Parser.ler(texto);
+    if (!lido.itens.length) {
+      toast('Não reconheci nenhum produto nessa mensagem.');
+      return;
+    }
+
+    lido.itens.forEach(i => pedido.itens.push({ desc: i.desc, quantidade: i.quantidade, valor: 0 }));
+    if (lido.cliente && !pedido.cliente) { pedido.cliente = lido.cliente; el.cliente.value = lido.cliente; }
+    if (lido.endereco && !pedido.endereco) {
+      pedido.endereco = lido.endereco;
+      el.endereco.value = lido.endereco;
+      $('#detalhesExtra').open = true;
+    }
+
+    el.mensagem.value = '';
+    el.detalhesMensagem.open = false;
+    vibrar(20);
+    pintarItens();
+    atualizar();
+    toast(`${lido.itens.length} produto${lido.itens.length > 1 ? 's' : ''} na lista — agora coloque os preços.`);
+    setTimeout(focarPrimeiroPrecoVazio, 350);
+  });
+
+  $('#btnLimparMensagem').addEventListener('click', () => { el.mensagem.value = ''; el.mensagem.focus(); });
+
+  /* ===================== campos do pedido ===================== */
   el.cliente.addEventListener('input', () => { pedido.cliente = el.cliente.value; atualizar(); });
   el.endereco.addEventListener('input', () => { pedido.endereco = el.endereco.value; atualizar(); });
   el.data.addEventListener('change', () => { pedido.data = el.data.value || hoje(); atualizar(); });
-  el.atendente.addEventListener('change', () => { pedido.atendenteId = Number(el.atendente.value) || null; atualizar(); });
   el.taxaEntrega.addEventListener('input', () => { pedido.taxa = Fmt.paraNumero(el.taxaEntrega.value); atualizar(); });
+  el.taxaEntrega.addEventListener('blur', () => { el.taxaEntrega.value = moedaEditavel(pedido.taxa); });
 
-  el.btnLimpar.addEventListener('click', () => {
+  $('#btnLimpar').addEventListener('click', () => {
     if (pedido.itens.length && !confirm('Começar um pedido novo? Os itens atuais serão apagados.')) return;
     const atendenteId = pedido.atendenteId;   // o atendente do turno continua o mesmo
     pedido = { cliente: '', endereco: '', data: hoje(), atendenteId, itens: [], taxa: 0 };
     Store.limparPedido();
     preencherCampos();
+    pintarItens();
     atualizar();
+    irPara('pedido');
     el.cliente.focus();
   });
 
-  /* ---------- imagem ---------- */
+  /* ===================== abas e barra ===================== */
+  function irPara(vista) {
+    document.body.dataset.vista = vista;
+    document.querySelectorAll('.aba').forEach(a => a.setAttribute('aria-selected', String(a.dataset.ir === vista)));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    atualizarTotais();
+  }
+  document.querySelectorAll('.aba').forEach(a => a.addEventListener('click', () => irPara(a.dataset.ir)));
+  $('#btnVoltar').addEventListener('click', () => irPara('pedido'));
+
+  el.btnAcao.addEventListener('click', () => {
+    if (document.body.dataset.vista === 'foto') { $('#btnCompartilhar').click(); return; }
+    if (!pedido.itens.length) { toast('Adicione pelo menos um produto.'); return; }
+    if (faltamPrecos()) {
+      toast('Coloque o preço de todos os produtos.');
+      focarPrimeiroPrecoVazio();
+      return;
+    }
+    irPara('foto');
+  });
+
+  /* ===================== imagem ===================== */
   function nomeArquivo() {
     const cliente = (pedido.cliente || 'pedido').toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -158,11 +279,9 @@
     return `pedido-${cliente}-${pedido.data}.png`;
   }
 
-  function paraBlob() {
-    return new Promise(resolve => el.canvas.toBlob(resolve, 'image/png'));
-  }
+  const paraBlob = () => new Promise(r => el.canvas.toBlob(r, 'image/png'));
 
-  el.btnBaixar.addEventListener('click', async () => {
+  async function baixar() {
     const blob = await paraBlob();
     if (!blob) return;
     const url = URL.createObjectURL(blob);
@@ -171,9 +290,11 @@
     a.download = nomeArquivo();
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-  });
+  }
 
-  el.btnCompartilhar.addEventListener('click', async () => {
+  $('#btnBaixar').addEventListener('click', baixar);
+
+  $('#btnCompartilhar').addEventListener('click', async () => {
     const blob = await paraBlob();
     if (!blob) return;
     const arquivo = new File([blob], nomeArquivo(), { type: 'image/png' });
@@ -184,15 +305,57 @@
         if (e.name !== 'AbortError') toast('Não foi possível compartilhar.');
       }
     } else {
-      el.btnBaixar.click();
+      await baixar();
       toast('Imagem baixada — envie pelo WhatsApp.');
     }
   });
 
-  /* ---------- administrador ---------- */
+  /* ===================== chips ===================== */
+  function chip(texto, aoTocar, marcado) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = texto;
+    if (marcado !== undefined) b.setAttribute('aria-pressed', String(marcado));
+    b.addEventListener('click', () => { vibrar(8); aoTocar(); });
+    return b;
+  }
+
+  function pintarAtendentes() {
+    el.chipsAtendente.innerHTML = '';
+    if (!Store.atendentes.some(a => a.id === pedido.atendenteId)) pedido.atendenteId = null;
+    Store.atendentes.forEach(a => {
+      el.chipsAtendente.append(chip(a.nome, () => {
+        pedido.atendenteId = pedido.atendenteId === a.id ? null : a.id;
+        pintarAtendentes();
+        atualizar();
+      }, pedido.atendenteId === a.id));
+    });
+    el.chipsAtendente.hidden = !Store.atendentes.length;
+    el.avisoAtendente.hidden = Store.atendentes.length > 0;
+  }
+
+  function pintarUnidades() {
+    el.chipsUnidade.innerHTML = '';
+    UNIDADES.forEach(u => {
+      el.chipsUnidade.append(chip(u, () => { unidadeAtual = u; pintarUnidades(); }, unidadeAtual === u));
+    });
+  }
+
+  function pintarFrequentes() {
+    el.chipsFrequentes.innerHTML = '';
+    Store.frequentes.forEach(nome => {
+      const c = chip(nome, () => { el.itemDesc.value = nome; el.itemValor.focus(); });
+      c.classList.add('chip-fraco');
+      el.chipsFrequentes.append(c);
+    });
+    el.chipsFrequentes.hidden = !Store.frequentes.length;
+  }
+
+  /* ===================== administrador ===================== */
   const dlg = $('#dlgAdmin');
   const adm = {
-    login: $('#adminLogin'), painel: $('#adminPainel'),
+    login: $('#adminLogin'), painel: $('#adminPainel'), titulo: $('#folhaTitulo'),
     senha: $('#adminSenha'), erro: $('#adminErro'), ok: $('#adminOk'),
     lista: $('#listaAtendentes'), novo: $('#novoAtendente'),
     nome: $('#cfgNome'), telefone: $('#cfgTelefone'), slogan: $('#cfgSlogan'),
@@ -217,41 +380,30 @@
     Store.atendentes.forEach(a => {
       const li = document.createElement('li');
 
-      const info = document.createElement('div');
-      info.className = 'item-info';
-      const nome = document.createElement('span');
-      nome.className = 'item-nome';
-      nome.textContent = a.nome;
-      info.append(nome);
-
-      const editar = document.createElement('button');
-      editar.type = 'button';
-      editar.className = 'btn btn-fantasma';
-      editar.textContent = 'Editar';
-      editar.addEventListener('click', () => {
-        const novo = prompt('Novo nome do atendente:', a.nome);
-        if (novo === null) return;
-        Store.renomearAtendente(a.id, novo);
-        pintarAtendentesAdmin();
-        pintarSelectAtendentes();
-        desenhar();
+      const nome = document.createElement('input');
+      nome.className = 'item-desc';
+      nome.value = a.nome;
+      nome.setAttribute('aria-label', 'Nome do atendente');
+      nome.addEventListener('change', () => {
+        Store.renomearAtendente(a.id, nome.value);
+        pintarAtendentes();
+        atualizar();
       });
 
       const remover = document.createElement('button');
       remover.type = 'button';
-      remover.className = 'btn-remover';
+      remover.className = 'botao-remover';
       remover.textContent = '✕';
-      remover.title = 'Remover atendente';
+      remover.setAttribute('aria-label', `Remover ${a.nome}`);
       remover.addEventListener('click', () => {
         if (!confirm(`Remover o atendente "${a.nome}"?`)) return;
         Store.removerAtendente(a.id);
-        if (pedido.atendenteId === a.id) pedido.atendenteId = null;
         pintarAtendentesAdmin();
-        pintarSelectAtendentes();
+        pintarAtendentes();
         atualizar();
       });
 
-      li.append(info, editar, remover);
+      li.append(nome, remover);
       adm.lista.append(li);
     });
   }
@@ -259,6 +411,7 @@
   function abrirPainelAdmin() {
     adm.login.hidden = true;
     adm.painel.hidden = false;
+    adm.titulo.textContent = 'Administração';
     const e = Store.empresa;
     adm.nome.value = e.nome || '';
     adm.telefone.value = e.telefone || '';
@@ -271,14 +424,20 @@
   $('#btnAdmin').addEventListener('click', () => {
     adm.login.hidden = false;
     adm.painel.hidden = true;
+    adm.titulo.textContent = 'Administrador';
     adm.erro.hidden = true;
     adm.senha.value = '';
     adm.dicaPadrao.textContent = Store.usandoSenhaPadrao()
-      ? `Senha padrão: "${Store.SENHA_PADRAO}" — troque no painel depois de entrar.`
+      ? `Senha padrão: "${Store.SENHA_PADRAO}" — troque depois de entrar.`
       : '';
     dlg.showModal();
+    document.documentElement.classList.add('sem-rolagem');
     adm.senha.focus();
   });
+
+  $('#btnFechar').addEventListener('click', () => dlg.close());
+  $('#btnSair').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('close', () => document.documentElement.classList.remove('sem-rolagem'));
 
   async function tentarEntrar() {
     if (await Store.conferirSenha(adm.senha.value)) {
@@ -287,12 +446,11 @@
     } else {
       adm.erro.hidden = false;
       adm.senha.select();
+      vibrar(40);
     }
   }
   $('#btnEntrar').addEventListener('click', tentarEntrar);
   adm.senha.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); tentarEntrar(); } });
-
-  $('#btnSair').addEventListener('click', () => dlg.close());
 
   $('#btnAddAtendente').addEventListener('click', () => {
     const nome = adm.novo.value.trim();
@@ -300,10 +458,12 @@
     if (!Store.adicionarAtendente(nome)) { toast('Esse atendente já está cadastrado.'); return; }
     adm.novo.value = '';
     pintarAtendentesAdmin();
-    pintarSelectAtendentes();
+    pintarAtendentes();
     avisoSalvo();
   });
-  adm.novo.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('#btnAddAtendente').click(); } });
+  adm.novo.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); $('#btnAddAtendente').click(); }
+  });
 
   for (const [campo, chave] of [[adm.nome, 'nome'], [adm.telefone, 'telefone'], [adm.slogan, 'slogan'],
                                 [adm.pixChave, 'pixChave'], [adm.pixTitular, 'pixTitular']]) {
@@ -314,7 +474,7 @@
     });
   }
 
-  /* Reduz a logo antes de guardar: localStorage tem espaço limitado. */
+  /* Reduz a logo antes de guardar: o armazenamento do navegador é pequeno. */
   adm.logo.addEventListener('change', () => {
     const arquivo = adm.logo.files?.[0];
     if (!arquivo) return;
@@ -340,6 +500,7 @@
 
   $('#btnRemoverLogo').addEventListener('click', () => {
     Store.atualizarEmpresa({ logo: '' });
+    adm.logo.value = '';
     carregarLogo().then(() => { pintarTopo(); desenhar(); avisoSalvo(); });
   });
 
@@ -353,38 +514,19 @@
     toast('Senha alterada.');
   });
 
-  /* ---------- montagem inicial ---------- */
-  function pintarSelectAtendentes() {
-    const atual = pedido.atendenteId;
-    el.atendente.innerHTML = '';
-    const vazio = document.createElement('option');
-    vazio.value = '';
-    vazio.textContent = Store.atendentes.length ? '— selecione —' : 'nenhum atendente cadastrado';
-    el.atendente.append(vazio);
-    Store.atendentes.forEach(a => {
-      const op = document.createElement('option');
-      op.value = a.id;
-      op.textContent = a.nome;
-      el.atendente.append(op);
-    });
-    el.atendente.value = Store.atendentes.some(a => a.id === atual) ? String(atual) : '';
-    pedido.atendenteId = Number(el.atendente.value) || null;
-    el.atendente.disabled = !Store.atendentes.length;
-    el.avisoAtendente.hidden = Store.atendentes.length > 0;
-  }
-
+  /* ===================== montagem inicial ===================== */
   function pintarTopo() {
     const e = Store.empresa;
-    el.topbarNome.textContent = e.nome || 'Minha Barraca';
-    el.topbarSub.textContent = e.telefone || 'Pedidos da feira';
-    el.topbarLogo.innerHTML = '';
+    el.topoNome.textContent = e.nome || 'Minha Barraca';
+    el.topoSub.textContent = e.telefone || 'Pedidos da feira';
+    el.topoLogo.innerHTML = '';
     if (e.logo) {
       const img = new Image();
       img.src = e.logo;
       img.alt = '';
-      el.topbarLogo.append(img);
+      el.topoLogo.append(img);
     } else {
-      el.topbarLogo.textContent = '🥬';
+      el.topoLogo.textContent = '🥬';
     }
     document.title = `Pedidos — ${e.nome || 'Minha Barraca'}`;
   }
@@ -393,20 +535,27 @@
     el.cliente.value = pedido.cliente || '';
     el.endereco.value = pedido.endereco || '';
     el.data.value = pedido.data || hoje();
-    el.taxaEntrega.value = pedido.taxa ? String(pedido.taxa).replace('.', ',') : '';
+    el.taxaEntrega.value = moedaEditavel(pedido.taxa);
   }
 
   async function carregarLogo() {
     logoImg = await Receipt.carregarLogo(Store.empresa.logo);
   }
 
-  el.dicaCompartilhar.textContent = navigator.canShare
-    ? 'No celular, "Compartilhar" abre o WhatsApp direto com a foto do pedido.'
-    : 'Use "Baixar imagem" e envie a foto pelo WhatsApp.';
+  $('#dicaCompartilhar').textContent = navigator.canShare
+    ? 'No celular, "Compartilhar" abre o WhatsApp já com a foto.'
+    : 'Use "Baixar" e envie a foto pelo WhatsApp.';
 
   preencherCampos();
-  pintarSelectAtendentes();
+  pintarAtendentes();
+  pintarUnidades();
+  pintarFrequentes();
   pintarTopo();
   pintarItens();
   carregarLogo().then(desenhar);
+
+  /* Instalável na tela inicial e funcionando sem internet na feira. */
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
 })();
