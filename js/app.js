@@ -13,6 +13,8 @@
     listaItens: $('#listaItens'), listaVazia: $('#listaVazia'), contadorItens: $('#contadorItens'),
     taxaEntrega: $('#taxaEntrega'), totalGeral: $('#totalGeral'), pillItens: $('#pillItens'),
     canvas: $('#canvasPedido'), btnAcao: $('#btnAcao'),
+    listaSeparar: $('#listaSeparar'), separarVazio: $('#separarVazio'),
+    sepBarra: $('#sepBarra'), sepTexto: $('#sepTexto'), pillSeparar: $('#pillSeparar'),
     mensagem: $('#mensagem'),
     topoNome: $('#topoNome'), topoSub: $('#topoSub'), topoLogo: $('#topoLogo'),
     toast: $('#toast')
@@ -21,6 +23,16 @@
   let pedido = Store.lerPedido() || { cliente: '', endereco: '', data: hoje(), atendenteId: null, itens: [], taxa: 0 };
   let unidadeAtual = 'un';
   let logoImg = null;
+  let proximoItemId = 1;
+
+  /* Cada item ganha uma identidade: dois produtos de mesmo nome não se
+     confundem na hora de animar a lista de separação. */
+  function garantirIds() {
+    pedido.itens.forEach(i => {
+      if (i.id) proximoItemId = Math.max(proximoItemId, i.id + 1);
+      else i.id = proximoItemId++;
+    });
+  }
 
   /* ===================== utilidades ===================== */
   let tempoToast;
@@ -64,6 +76,10 @@
     });
   }
 
+  function separados() {
+    return pedido.itens.filter(i => i.separado).length;
+  }
+
   function atualizarTotais() {
     const soma = pedido.itens.reduce((s, i) => s + i.valor, 0) + pedido.taxa;
     el.totalGeral.textContent = Fmt.moeda(soma);
@@ -71,14 +87,122 @@
     el.pillItens.textContent = pedido.itens.length;
     el.listaVazia.hidden = pedido.itens.length > 0;
 
+    const total = pedido.itens.length;
+    const prontos = separados();
+    const faltamItens = total - prontos;
+    el.pillSeparar.textContent = total ? `${prontos}/${total}` : '0';
+    el.pillSeparar.classList.toggle('pill-fraca', faltamItens > 0);
+    el.sepTexto.textContent = `${prontos} de ${total} separado${total === 1 ? '' : 's'}`;
+    el.sepBarra.style.width = total ? `${(prontos / total) * 100}%` : '0';
+    el.separarVazio.hidden = total > 0;
+
+    const vista = document.body.dataset.vista;
     const faltam = faltamPrecos();
-    el.btnAcao.textContent = document.body.dataset.vista === 'foto' ? 'Compartilhar'
-      : faltam ? `Falta${faltam > 1 ? 'm' : ''} ${faltam} preço${faltam > 1 ? 's' : ''}` : 'Ver foto';
-    el.btnAcao.classList.toggle('botao-alerta', document.body.dataset.vista !== 'foto' && faltam > 0);
+    if (vista === 'foto') {
+      el.btnAcao.textContent = 'Compartilhar';
+      el.btnAcao.classList.remove('botao-alerta');
+    } else if (vista === 'separar') {
+      el.btnAcao.textContent = faltamItens ? `Faltam ${faltamItens}` : 'Tudo separado';
+      el.btnAcao.classList.toggle('botao-alerta', faltamItens > 0);
+    } else {
+      el.btnAcao.textContent = faltam ? `Falta${faltam > 1 ? 'm' : ''} ${faltam} preço${faltam > 1 ? 's' : ''}` : 'Ver foto';
+      el.btnAcao.classList.toggle('botao-alerta', faltam > 0);
+    }
   }
 
-  function atualizar() {
+  /* ===================== separação ===================== */
+  /* Marcados sobem para o topo, na ordem em que foram separados. */
+  function ordemSeparacao() {
+    return [...pedido.itens]
+      .map((item, indice) => ({ item, indice }))
+      .sort((a, b) => {
+        if (a.item.separado && b.item.separado) return (a.item.separadoEm || 0) - (b.item.separadoEm || 0);
+        if (a.item.separado !== b.item.separado) return a.item.separado ? -1 : 1;
+        return a.indice - b.indice;
+      })
+      .map(x => x.item);
+  }
+
+  function pintarSeparacao() {
+    garantirIds();
+    el.listaSeparar.innerHTML = '';
+    ordemSeparacao().forEach(item => {
+      const li = document.createElement('li');
+      li.dataset.id = item.id;
+      const rotulo = document.createElement('label');
+      rotulo.className = 'linha-sep' + (item.separado ? ' marcado' : '');
+
+      const caixa = document.createElement('input');
+      caixa.type = 'checkbox';
+      caixa.checked = !!item.separado;
+      caixa.addEventListener('change', () => alternarSeparado(item, caixa.checked));
+
+      const marca = document.createElement('span');
+      marca.className = 'marca';
+
+      const info = document.createElement('div');
+      info.className = 'sep-info';
+      const nome = document.createElement('span');
+      nome.className = 'sep-nome';
+      nome.textContent = item.desc;
+      const qtd = document.createElement('span');
+      qtd.className = 'sep-qtd';
+      qtd.textContent = item.quantidade;
+      info.append(nome, qtd);
+
+      const valor = document.createElement('span');
+      valor.className = 'sep-valor';
+      valor.textContent = item.valor ? Fmt.moeda(item.valor) : '';
+
+      rotulo.append(caixa, marca, info, valor);
+      li.append(rotulo);
+      el.listaSeparar.append(li);
+    });
     atualizarTotais();
+  }
+
+  /* Guarda onde cada linha estava, redesenha e desliza da posição antiga
+     para a nova — assim dá para acompanhar o item subindo. */
+  function animarReordenacao(redesenhar) {
+    const antes = new Map();
+    el.listaSeparar.querySelectorAll('li').forEach(li => antes.set(li.dataset.id, li.getBoundingClientRect().top));
+
+    redesenhar();
+
+    if (!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      el.listaSeparar.querySelectorAll('li').forEach(li => {
+        const topoAntigo = antes.get(li.dataset.id);
+        if (topoAntigo === undefined) return;
+        const delta = topoAntigo - li.getBoundingClientRect().top;
+        if (!delta || !li.animate) return;
+        li.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }],
+                   { duration: 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
+      });
+    }
+  }
+
+  function alternarSeparado(item, marcado) {
+    item.separado = marcado;
+    item.separadoEm = marcado ? Date.now() : 0;
+    vibrar(marcado ? 18 : 8);
+    animarReordenacao(pintarSeparacao);
+    Store.salvarPedido(pedido);
+    if (marcado && separados() === pedido.itens.length) toast('Pedido separado! 🎉');
+  }
+
+  $('#btnDesmarcar').addEventListener('click', () => {
+    pedido.itens.forEach(i => { i.separado = false; i.separadoEm = 0; });
+    animarReordenacao(pintarSeparacao);
+    Store.salvarPedido(pedido);
+  });
+
+  $('#btnSeparar').addEventListener('click', () => {
+    if (!pedido.itens.length) { toast('Adicione os produtos primeiro.'); return; }
+    irPara('separar');
+  });
+
+  function atualizar() {
+    pintarSeparacao();
     desenhar();
     Store.salvarPedido(pedido);
   }
@@ -175,7 +299,8 @@
       desc,
       /* aceita número ("1,5") ou texto livre ("meia dúzia") */
       quantidade: (numero > 0 ? Fmt.numero(numero) : bruta) + (unidadeAtual ? ' ' + unidadeAtual : ''),
-      valor
+      valor,
+      separado: false
     });
     Store.registrarProduto(desc);
 
@@ -214,7 +339,7 @@
       return;
     }
 
-    lido.itens.forEach(i => pedido.itens.push({ desc: i.desc, quantidade: i.quantidade, valor: 0 }));
+    lido.itens.forEach(i => pedido.itens.push({ desc: i.desc, quantidade: i.quantidade, valor: 0, separado: false }));
     if (lido.cliente && !pedido.cliente) { pedido.cliente = lido.cliente; el.cliente.value = lido.cliente; }
     if (lido.endereco && !pedido.endereco) {
       pedido.endereco = lido.endereco;
@@ -274,7 +399,14 @@
   $('#btnVoltar').addEventListener('click', () => irPara('pedido'));
 
   el.btnAcao.addEventListener('click', () => {
-    if (document.body.dataset.vista === 'foto') { $('#btnCompartilhar').click(); return; }
+    const vista = document.body.dataset.vista;
+    if (vista === 'foto') { $('#btnCompartilhar').click(); return; }
+    if (vista === 'separar') {
+      const falta = el.listaSeparar.querySelector('.linha-sep:not(.marcado)');
+      if (falta) { falta.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+      irPara('foto');
+      return;
+    }
     if (!pedido.itens.length) { toast('Adicione pelo menos um produto.'); return; }
     if (faltamPrecos()) {
       toast('Coloque o preço de todos os produtos.');
@@ -583,6 +715,7 @@
   pintarFrequentes();
   pintarTopo();
   pintarItens();
+  pintarSeparacao();
   carregarLogo().then(desenhar);
 
   /* Instalável na tela inicial e funcionando sem internet na feira. */

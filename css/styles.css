@@ -75,15 +75,17 @@ h3 { font-size: .95rem; margin: 1.7rem 0 .7rem; color: var(--verde-escuro); }
   background: var(--fundo); border-bottom: 1px solid var(--borda);
 }
 .aba {
-  flex: 1; min-height: 44px;
-  font: inherit; font-size: .95rem; font-weight: 600; cursor: pointer;
+  flex: 1; min-height: 44px; padding: 0 .3rem;
+  display: flex; align-items: center; justify-content: center; gap: .3rem;
+  white-space: nowrap;
+  font: inherit; font-size: .92rem; font-weight: 600; cursor: pointer;
   color: var(--texto-fraco); background: transparent;
   border: 0; border-radius: 11px;
 }
 .aba[aria-selected="true"] { background: var(--papel); color: var(--verde-escuro); box-shadow: var(--sombra); }
 .pill {
-  display: inline-block; min-width: 22px; margin-left: .25rem; padding: 0 .35rem;
-  font-size: .78rem; line-height: 20px; color: #fff; background: var(--verde);
+  display: inline-block; min-width: 20px; padding: 0 .3rem;
+  font-size: .72rem; line-height: 19px; color: #fff; background: var(--verde);
   border-radius: 999px;
 }
 
@@ -92,9 +94,10 @@ h3 { font-size: .95rem; margin: 1.7rem 0 .7rem; color: var(--verde-escuro); }
   display: grid; gap: .8rem;
   padding: .8rem .9rem calc(var(--barra-altura) + env(safe-area-inset-bottom) + 1rem);
 }
-body[data-vista="pedido"] #vistaFoto,
-body[data-vista="foto"] #vistaPedido { display: none; }
-.vista { display: grid; gap: .8rem; align-content: start; }
+.vista { display: none; gap: .8rem; align-content: start; }
+body[data-vista="pedido"] #vistaPedido,
+body[data-vista="separar"] #vistaSeparar,
+body[data-vista="foto"] #vistaFoto { display: grid; }
 
 /* Item de grid/flex não encolhe sozinho: sem isto, uma fila de chips que
    não quebra linha estica o cartão inteiro e a tela rola de lado. */
@@ -288,14 +291,16 @@ input[type="date"] { min-height: var(--toque); text-align: left; }
 
 /* ===================== telas grandes ===================== */
 @media (min-width: 900px) {
-  .abas { display: none; }
   .conteudo {
     max-width: 1120px; margin: 0 auto; padding: 1.2rem 1.2rem 6rem;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start; gap: 1.2rem;
   }
+  .abas { display: flex; }        /* na tela grande as abas dão acesso à separação */
   body[data-vista="pedido"] #vistaFoto,
-  body[data-vista="foto"] #vistaPedido { display: grid; }
+  body[data-vista="separar"] #vistaFoto,
+  body[data-vista="foto"] #vistaPedido,
+  body[data-vista="foto"] #vistaFoto { display: grid; }
   #vistaFoto { position: sticky; top: 5.5rem; }
   .previa { max-height: none; }
   .barra { justify-content: center; }
@@ -371,3 +376,61 @@ textarea:focus { outline: none; border-color: var(--verde); box-shadow: 0 0 0 3p
 
 /* Trava a página enquanto a folha do administrador está aberta. */
 html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
+
+/* ===================================================================
+   Modo separação: marcar o que já foi para a sacola
+   =================================================================== */
+.cartao-acoes { display: flex; align-items: center; gap: .3rem; }
+.botao-pequeno { min-height: 42px; padding: .4rem .85rem; font-size: .87rem; }
+.pill-fraca { background: var(--texto-fraco); }
+
+.progresso { display: flex; align-items: center; gap: .8rem; margin-bottom: .8rem; }
+.progresso-trilho {
+  flex: 1; height: 12px; background: #e6eae2;
+  border-radius: 999px; overflow: hidden;
+}
+.progresso-barra {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--verde), var(--verde-vivo));
+  border-radius: 999px; transition: width .28s ease;
+}
+.progresso strong { font-size: .9rem; color: var(--verde-escuro); white-space: nowrap; }
+
+.separacao { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.linha-sep {
+  display: flex; align-items: center; gap: .8rem;
+  min-height: 68px; padding: .7rem .9rem; margin: 0; cursor: pointer;
+  background: #fff; border: 1.5px solid var(--borda); border-radius: 14px;
+  transition: background-color .2s, border-color .2s;
+}
+.linha-sep input { position: absolute; opacity: 0; width: 0; height: 0; }
+.marca {
+  flex: none; width: 32px; height: 32px; border-radius: 50%;
+  border: 2.5px solid var(--borda); background: #fff;
+  display: grid; place-items: center;
+  transition: background-color .2s, border-color .2s;
+}
+.marca::after {
+  content: ''; width: 15px; height: 9px;
+  border-left: 3.5px solid #fff; border-bottom: 3.5px solid #fff;
+  transform: rotate(-45deg) scale(.4); transform-origin: center;
+  opacity: 0; transition: opacity .18s, transform .18s;
+  margin-top: -4px;
+}
+.sep-info { flex: 1; min-width: 0; }
+.sep-nome { display: block; font-weight: 700; font-size: 1.02rem; overflow-wrap: anywhere; }
+.sep-qtd { font-size: .92rem; font-weight: 600; color: var(--verde); }
+.sep-valor { font-size: .88rem; color: var(--texto-fraco); white-space: nowrap; }
+
+/* separado */
+.linha-sep:has(input:checked) { background: var(--verde-claro); border-color: var(--verde); }
+.linha-sep:has(input:checked) .marca { background: var(--verde); border-color: var(--verde); }
+.linha-sep:has(input:checked) .marca::after { opacity: 1; transform: rotate(-45deg) scale(1); }
+.linha-sep:has(input:checked) .sep-nome { color: var(--verde-escuro); }
+.linha-sep input:focus-visible + .marca { box-shadow: 0 0 0 3px rgba(31, 122, 63, .3); }
+
+/* navegadores sem :has ainda mostram o estado pela classe */
+.linha-sep.marcado { background: var(--verde-claro); border-color: var(--verde); }
+.linha-sep.marcado .marca { background: var(--verde); border-color: var(--verde); }
+.linha-sep.marcado .marca::after { opacity: 1; transform: rotate(-45deg) scale(1); }
+.linha-sep.marcado .sep-nome { color: var(--verde-escuro); }

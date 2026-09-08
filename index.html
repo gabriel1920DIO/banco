@@ -28,6 +28,9 @@
 
 <nav class="abas" role="tablist" aria-label="Seções">
   <button type="button" class="aba" role="tab" data-ir="pedido" aria-selected="true">Pedido</button>
+  <button type="button" class="aba" role="tab" data-ir="separar" aria-selected="false">
+    Separar <span class="pill pill-fraca" id="pillSeparar">0</span>
+  </button>
   <button type="button" class="aba" role="tab" data-ir="foto" aria-selected="false">
     Foto <span class="pill" id="pillItens">0</span>
   </button>
@@ -119,7 +122,10 @@
     <div class="cartao">
       <div class="cartao-topo">
         <h2>Itens <span class="contador" id="contadorItens">0</span></h2>
-        <button type="button" class="botao botao-texto" id="btnLimpar">Novo pedido</button>
+        <div class="cartao-acoes">
+          <button type="button" class="botao botao-pequeno" id="btnSeparar">Separar</button>
+          <button type="button" class="botao botao-texto" id="btnLimpar">Novo pedido</button>
+        </div>
       </div>
 
       <ul class="itens" id="listaItens"></ul>
@@ -134,6 +140,26 @@
           <input type="text" id="taxaEntrega" placeholder="0,00" inputmode="decimal">
         </div>
       </label>
+    </div>
+  </section>
+
+  <!-- ==================== SEPARAÇÃO ==================== -->
+  <section id="vistaSeparar" class="vista">
+    <div class="cartao">
+      <div class="cartao-topo">
+        <h2>Separação</h2>
+        <button type="button" class="botao botao-texto" id="btnDesmarcar">Desmarcar tudo</button>
+      </div>
+
+      <div class="progresso">
+        <div class="progresso-trilho"><div class="progresso-barra" id="sepBarra"></div></div>
+        <strong id="sepTexto">0 de 0 separados</strong>
+      </div>
+
+      <p class="dica">Toque no produto assim que separar. Ele fica verde e sobe para o topo.</p>
+
+      <ul class="separacao" id="listaSeparar"></ul>
+      <p class="vazio" id="separarVazio">Nenhum produto no pedido ainda.</p>
     </div>
   </section>
 

@@ -50,6 +50,20 @@ todos editáveis ali mesmo.
 escolha a unidade e digite o valor. Os produtos usados recentemente viram
 atalhos de um toque.
 
+## Modo separação
+
+Com o pedido montado, toque em **Separar** (no cartão de itens ou na aba do
+topo). A lista vira uma checklist: toque no produto assim que ele entrar na
+sacola — ele fica **verde e sobe para o topo**, na ordem em que foi separado.
+
+A barra de cima mostra o quanto já foi ("3 de 11 separados") e a aba mostra o
+mesmo em miniatura. O botão de baixo leva ao próximo produto que falta e, com
+tudo separado, vai direto para a foto. "Desmarcar tudo" recomeça a conferência.
+
+A separação fica salva junto com o pedido: dá para fechar o app no meio e
+continuar depois. Ela é só para conferência interna — não aparece na foto que
+o cliente recebe.
+
 ## Sempre o valor total
 
 Em qualquer um dos dois caminhos você digita o **valor total** do produto. Não
