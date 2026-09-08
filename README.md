@@ -96,6 +96,40 @@ dados ficam no navegador local. Não é um controle de acesso de servidor.
 | `sw.js`, `manifest.webmanifest`, `icones/` | Instalação na tela de início e uso offline |
 | `imagens/logo-gu.jpg` | Logo da barraca, usada no topo e na foto do pedido |
 
+## Desempenho
+
+O app precisa responder na hora, com o cliente esperando na frente da barraca.
+As contas abaixo foram medidas com o processador 6× mais lento que o de
+desenvolvimento, num pedido de 11 itens — perto de um celular modesto:
+
+| | Antes | Agora |
+| --- | --- | --- |
+| Digitar uma letra | 2648 ms | 33 ms |
+| Trocar de aba | 448 ms | 66–76 ms |
+| Gerar a imagem | 5452 ms | ~450 ms, em segundo plano |
+| Tamanho da foto | 3,8 MB | 630 KB |
+| Primeira visita (4G lento) | 2376 ms | 1910 ms |
+
+O que causava a lentidão: **cada tecla digitada redesenhava a foto inteira e
+gerava o arquivo de imagem**. Um canvas de 13,3 megapixels e um PNG de 3,8 MB,
+a cada letra.
+
+O que mudou:
+
+- A foto só é redesenhada quando está na tela, e é adiantada nos momentos em
+  que ninguém está digitando — então a aba abre pronta.
+- O arquivo para compartilhar é gerado só na aba da foto, em JPEG (3× menor que
+  o PNG) e sem travar a tela.
+- A foto tem no máximo 2000 px de largura e nenhum lado passa de 4000 px. Além
+  de ser mais rápido, isso evita um limite do Safari no iPhone que devolvia a
+  foto **em branco** em pedidos grandes.
+- O pedido é gravado no aparelho com uma folga de 400 ms em vez de a cada
+  tecla — e na hora, se o app for para segundo plano.
+- A logo caiu de 185 KB para 99 KB, sem perda visível.
+
+Qualquer caminho que pegue a imagem confere antes se o desenho está em dia, de
+modo que a foto nunca sai desatualizada.
+
 ## Detalhes de celular
 
 Testado em iPhone SE, iPhone 15, Android e tablet: sem rolagem lateral, nenhum

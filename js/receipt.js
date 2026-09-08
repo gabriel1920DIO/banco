@@ -196,7 +196,9 @@ const Receipt = (() => {
 
     const ctx = canvas.getContext('2d');
     const m = medir(ctx, dados);
-    const escala = Math.min(2, globalThis.devicePixelRatio || 1) * 1.5;
+    /* 2000 px de largura já sai nítido no WhatsApp, e nenhum lado passa de
+       4000 px — acima disso o Safari do iPhone devolve a foto em branco. */
+    const escala = Math.min(2, 4000 / m.altura, 4000 / L);
 
     canvas.width = Math.round(L * escala);
     canvas.height = Math.round(m.altura * escala);

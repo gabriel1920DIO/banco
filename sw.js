@@ -1,5 +1,5 @@
 /* Guarda o app no aparelho: depois da primeira abertura, funciona sem internet. */
-const CACHE = 'barraca-v3';
+const CACHE = 'barraca-v4';
 const ARQUIVOS = [
   '.', 'index.html', 'manifest.webmanifest',
   'css/styles.css', 'js/store.js', 'js/parser.js', 'js/receipt.js', 'js/app.js',

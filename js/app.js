@@ -24,6 +24,15 @@
   let unidadeAtual = 'un';
   let logoImg = null;
   let proximoItemId = 1;
+  let todasUnidades = false;
+
+  /* Estado do desenho: a foto é refeita só quando precisa aparecer. */
+  let canvasSujo = true;         // o desenho está atrás do pedido atual
+  let separacaoSuja = true;      // a lista de separação idem
+  let pendente = false;          // desenho já agendado para o próximo quadro
+  let arquivoPronto = null;      // imagem pronta para compartilhar
+  let geracaoArquivo = 0;        // descarta gerações antigas que chegam atrasadas
+  let temporizadorArquivo, temporizadorOcioso, temporizadorSalvar;
 
   /* Cada item ganha uma identidade: dois produtos de mesmo nome não se
      confundem na hora de animar a lista de separação. */
@@ -60,20 +69,54 @@
     return pedido.itens.filter(i => !i.valor).length;
   }
 
-  /* ===================== desenho da foto ===================== */
-  let pendente = false;
+  /* ===================== desenho da foto =====================
+     A foto é pesada (alguns milhões de pixels). Redesenhar a cada tecla
+     travava o aparelho, então ela só é refeita quando está na tela. */
+  function desenharAgora() {
+    canvasSujo = false;
+    Receipt.render(el.canvas, {
+      cliente: pedido.cliente, endereco: pedido.endereco, data: pedido.data,
+      atendente: nomeAtendente(), itens: pedido.itens, taxa: pedido.taxa,
+      empresa: Store.empresa
+    }, { logo: logoImg });
+  }
+
   function desenhar() {
     if (pendente) return;
     pendente = true;
     requestAnimationFrame(() => {
       pendente = false;
-      Receipt.render(el.canvas, {
-        cliente: pedido.cliente, endereco: pedido.endereco, data: pedido.data,
-        atendente: nomeAtendente(), itens: pedido.itens, taxa: pedido.taxa,
-        empresa: Store.empresa
-      }, { logo: logoImg });
-      prepararArquivo();
+      desenharAgora();
+      agendarArquivo();
     });
+  }
+
+  /* Rede de segurança: ninguém pega a imagem sem ela estar em dia. */
+  function garantirDesenho() {
+    if (canvasSujo) desenharAgora();
+  }
+
+  function desenharSeVisivel() {
+    if (document.body.dataset.vista !== 'foto') return;
+    if (canvasSujo) desenhar();
+    else agendarArquivo();
+  }
+
+  /* Enquanto o atendente não está digitando, adianta o desenho: assim a aba
+     da foto abre pronta, sem espera. */
+  function adiantarDesenho() {
+    clearTimeout(temporizadorOcioso);
+    temporizadorOcioso = setTimeout(() => {
+      const quandoDer = globalThis.requestIdleCallback || (fn => setTimeout(fn, 1));
+      quandoDer(() => { if (canvasSujo && pedido.itens.length) desenhar(); });
+    }, 900);
+  }
+
+  function pintarSeparacaoSeVisivel() {
+    if (separacaoSuja && document.body.dataset.vista === 'separar') {
+      separacaoSuja = false;
+      pintarSeparacao();
+    }
   }
 
   function separados() {
@@ -186,14 +229,14 @@
     item.separadoEm = marcado ? Date.now() : 0;
     vibrar(marcado ? 18 : 8);
     animarReordenacao(pintarSeparacao);
-    Store.salvarPedido(pedido);
+    salvarAgora();
     if (marcado && separados() === pedido.itens.length) toast('Pedido separado! 🎉');
   }
 
   $('#btnDesmarcar').addEventListener('click', () => {
     pedido.itens.forEach(i => { i.separado = false; i.separadoEm = 0; });
     animarReordenacao(pintarSeparacao);
-    Store.salvarPedido(pedido);
+    salvarAgora();
   });
 
   $('#btnSeparar').addEventListener('click', () => {
@@ -201,10 +244,28 @@
     irPara('separar');
   });
 
-  function atualizar() {
-    pintarSeparacao();
-    desenhar();
+  /* Gravar a cada tecla custa caro; grava um instante depois — e na hora
+     se o app for para segundo plano. */
+  function salvarDepois() {
+    clearTimeout(temporizadorSalvar);
+    temporizadorSalvar = setTimeout(() => Store.salvarPedido(pedido), 400);
+  }
+  function salvarAgora() {
+    clearTimeout(temporizadorSalvar);
     Store.salvarPedido(pedido);
+  }
+  addEventListener('pagehide', salvarAgora);
+  addEventListener('visibilitychange', () => { if (document.hidden) salvarAgora(); });
+
+  function atualizar() {
+    canvasSujo = true;
+    separacaoSuja = true;
+    arquivoPronto = null;
+    atualizarTotais();
+    pintarSeparacaoSeVisivel();
+    desenharSeVisivel();
+    adiantarDesenho();
+    salvarDepois();
   }
 
   /* ===================== lista de itens ===================== */
@@ -392,8 +453,10 @@
   function irPara(vista) {
     document.body.dataset.vista = vista;
     document.querySelectorAll('.aba').forEach(a => a.setAttribute('aria-selected', String(a.dataset.ir === vista)));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo(0, 0);
     atualizarTotais();
+    pintarSeparacaoSeVisivel();
+    desenharSeVisivel();
   }
   document.querySelectorAll('.aba').forEach(a => a.addEventListener('click', () => irPara(a.dataset.ir)));
   $('#btnVoltar').addEventListener('click', () => irPara('pedido'));
@@ -421,19 +484,38 @@
     const cliente = (pedido.cliente || 'pedido').toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'pedido';
-    return `pedido-${cliente}-${pedido.data}.png`;
+    return `pedido-${cliente}-${pedido.data}.jpg`;
   }
 
-  const paraBlob = () => new Promise(r => el.canvas.toBlob(r, 'image/png'));
+  /* JPEG em vez de PNG: o arquivo fica muito menor e a geração é bem mais
+     rápida — e o WhatsApp recomprime como JPEG de qualquer jeito. */
+  const paraBlob = () => new Promise(r => el.canvas.toBlob(r, 'image/jpeg', 0.92));
 
   /* O Safari do iPhone só aceita navigator.share dentro do toque: se houver
      qualquer espera antes, ele recusa. Por isso a imagem é preparada assim
      que o pedido muda e o botão usa o arquivo já pronto. */
-  let arquivoPronto = null;
+  function marcarPreparando(preparando) {
+    const botao = $('#btnCompartilhar');
+    botao.disabled = preparando;
+    botao.textContent = preparando ? 'Preparando…' : 'Compartilhar';
+  }
+
   async function prepararArquivo() {
-    const blob = await paraBlob();
-    arquivoPronto = blob ? new File([blob], nomeArquivo(), { type: 'image/png' }) : null;
+    garantirDesenho();
+    const minha = ++geracaoArquivo;
+    marcarPreparando(true);
+    let blob = null;
+    try { blob = await paraBlob(); } catch { /* segue sem arquivo */ }
+    if (minha !== geracaoArquivo) return arquivoPronto;   // já veio outra depois
+    arquivoPronto = blob ? new File([blob], nomeArquivo(), { type: 'image/jpeg' }) : null;
+    marcarPreparando(false);
     return arquivoPronto;
+  }
+
+  function agendarArquivo() {
+    if (document.body.dataset.vista !== 'foto') return;
+    clearTimeout(temporizadorArquivo);
+    temporizadorArquivo = setTimeout(prepararArquivo, 60);
   }
 
   function baixarArquivo(arquivo) {
@@ -450,8 +532,8 @@
     if (arquivo) baixarArquivo(arquivo);
   });
 
-  $('#btnCompartilhar').addEventListener('click', ev => {
-    const arquivo = arquivoPronto;
+  $('#btnCompartilhar').addEventListener('click', () => {
+    const arquivo = canvasSujo ? null : arquivoPronto;
     if (arquivo && navigator.canShare?.({ files: [arquivo] })) {
       navigator.share({ files: [arquivo], title: 'Pedido' })
         .catch(e => { if (e.name !== 'AbortError') toast('Não foi possível compartilhar.'); });
@@ -490,7 +572,6 @@
     el.avisoAtendente.hidden = Store.atendentes.length > 0;
   }
 
-  let todasUnidades = false;
   function pintarUnidades() {
     el.chipsUnidade.innerHTML = '';
     const lista = todasUnidades ? [...UNIDADES, ...UNIDADES_EXTRA] : UNIDADES;
@@ -715,8 +796,8 @@
   pintarFrequentes();
   pintarTopo();
   pintarItens();
-  pintarSeparacao();
-  carregarLogo().then(desenhar);
+  garantirIds();
+  carregarLogo().then(desenharSeVisivel);
 
   /* Instalável na tela inicial e funcionando sem internet na feira. */
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
