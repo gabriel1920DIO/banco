@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14532d">
+  <title>Pedidos da Barraca</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A5%AC%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <span class="topbar-logo" id="topbarLogo">🥬</span>
+    <div>
+      <strong id="topbarNome">Minha Barraca</strong>
+      <small id="topbarSub">Pedidos da feira</small>
+    </div>
+  </div>
+  <button type="button" class="btn-icon" id="btnAdmin" title="Área do administrador">⚙️</button>
+</header>
+
+<main class="layout">
+
+  <!-- ============ COLUNA DO FORMULÁRIO ============ -->
+  <section class="painel">
+
+    <div class="card">
+      <h2>Dados do pedido</h2>
+      <div class="grid-2">
+        <label>Cliente
+          <input type="text" id="cliente" placeholder="Nome do cliente" autocomplete="off">
+        </label>
+        <label>Data
+          <input type="date" id="data">
+        </label>
+      </div>
+      <label>Endereço <span class="opcional">(opcional)</span>
+        <input type="text" id="endereco" placeholder="Rua, número, bairro" autocomplete="off">
+      </label>
+      <label>Atendente
+        <select id="atendente"></select>
+      </label>
+      <p class="aviso" id="avisoAtendente" hidden>
+        Nenhum atendente cadastrado. Peça ao administrador para cadastrar em ⚙️.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Adicionar produto</h2>
+      <form id="formItem" autocomplete="off">
+        <label>Produto
+          <input type="text" id="itemDesc" placeholder="Ex.: Tomate italiano" required>
+        </label>
+        <div class="grid-3">
+          <label>Qtd.
+            <input type="text" id="itemQtd" placeholder="1" inputmode="decimal">
+          </label>
+          <label>Unid.
+            <select id="itemUnidade">
+              <option value="un">un</option>
+              <option value="kg">kg</option>
+              <option value="cx">cx</option>
+              <option value="ctla">ctla</option>
+              <option value="dz">dz</option>
+              <option value="mç">mç</option>
+              <option value="pct">pct</option>
+              <option value="bdj">bdj</option>
+              <option value="sc">sc</option>
+              <option value="">sem unid.</option>
+            </select>
+          </label>
+          <label>Valor total (R$)
+            <input type="text" id="itemValor" placeholder="0,00" inputmode="decimal" required>
+          </label>
+        </div>
+        <p class="dica">Digite sempre o <strong>valor total</strong> do produto — não existe valor unitário.</p>
+        <button type="submit" class="btn btn-primary btn-bloco">Adicionar ao pedido</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Itens do pedido</h2>
+        <button type="button" class="btn btn-fantasma" id="btnLimpar">Novo pedido</button>
+      </div>
+      <ul class="lista-itens" id="listaItens"></ul>
+      <p class="vazio" id="listaVazia">Nenhum item adicionado ainda.</p>
+
+      <label class="linha-taxa">Taxa de entrega (R$)
+        <input type="text" id="taxaEntrega" placeholder="0,00" inputmode="decimal">
+      </label>
+
+      <div class="total-linha">
+        <span>Total geral</span>
+        <strong id="totalGeral">R$ 0,00</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COLUNA DA FOTO ============ -->
+  <section class="painel">
+    <div class="card">
+      <div class="card-head">
+        <h2>Foto do pedido</h2>
+        <span class="badge" id="badgeItens">0 itens</span>
+      </div>
+      <div class="preview" id="preview">
+        <canvas id="canvasPedido"></canvas>
+      </div>
+      <div class="acoes">
+        <button type="button" class="btn btn-primary" id="btnCompartilhar">Compartilhar</button>
+        <button type="button" class="btn" id="btnBaixar">Baixar imagem</button>
+      </div>
+      <p class="dica" id="dicaCompartilhar"></p>
+    </div>
+  </section>
+</main>
+
+<!-- ============ MODAL DO ADMINISTRADOR ============ -->
+<dialog id="dlgAdmin" class="modal">
+  <form method="dialog" class="modal-fechar"><button class="btn-icon" value="fechar">✕</button></form>
+
+  <!-- Login -->
+  <div id="adminLogin">
+    <h2>Área do administrador</h2>
+    <p class="dica">Apenas o administrador pode cadastrar, editar ou remover atendentes.</p>
+    <label>Senha
+      <input type="password" id="adminSenha" autocomplete="current-password">
+    </label>
+    <p class="erro" id="adminErro" hidden>Senha incorreta.</p>
+    <button type="button" class="btn btn-primary btn-bloco" id="btnEntrar">Entrar</button>
+    <p class="dica" id="dicaSenhaPadrao"></p>
+  </div>
+
+  <!-- Painel -->
+  <div id="adminPainel" hidden>
+    <div class="card-head">
+      <h2>Administração</h2>
+      <button type="button" class="btn btn-fantasma" id="btnSair">Sair</button>
+    </div>
+
+    <h3>Atendentes</h3>
+    <ul class="lista-itens" id="listaAtendentes"></ul>
+    <div class="grid-add">
+      <input type="text" id="novoAtendente" placeholder="Nome do atendente" autocomplete="off">
+      <button type="button" class="btn btn-primary" id="btnAddAtendente">Adicionar</button>
+    </div>
+
+    <h3>Dados da barraca</h3>
+    <label>Nome
+      <input type="text" id="cfgNome" placeholder="Minha Barraca">
+    </label>
+    <div class="grid-2">
+      <label>Telefone / WhatsApp
+        <input type="text" id="cfgTelefone" placeholder="(11) 90000-0000">
+      </label>
+      <label>Slogan
+        <input type="text" id="cfgSlogan" placeholder="FRESCOR • QUALIDADE • SAÚDE">
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>Chave PIX
+        <input type="text" id="cfgPixChave" placeholder="CPF, CNPJ, telefone ou e-mail">
+      </label>
+      <label>Titular do PIX
+        <input type="text" id="cfgPixTitular" placeholder="Nome do titular">
+      </label>
+    </div>
+    <label>Logo <span class="opcional">(opcional)</span>
+      <input type="file" id="cfgLogo" accept="image/*">
+    </label>
+    <button type="button" class="btn btn-fantasma" id="btnRemoverLogo">Remover logo</button>
+
+    <h3>Senha do administrador</h3>
+    <div class="grid-2">
+      <label>Nova senha
+        <input type="password" id="cfgSenha1" autocomplete="new-password">
+      </label>
+      <label>Repetir senha
+        <input type="password" id="cfgSenha2" autocomplete="new-password">
+      </label>
+    </div>
+    <button type="button" class="btn" id="btnTrocarSenha">Salvar nova senha</button>
+
+    <p class="ok" id="adminOk" hidden>Salvo!</p>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/store.js"></script>
+<script src="js/receipt.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
